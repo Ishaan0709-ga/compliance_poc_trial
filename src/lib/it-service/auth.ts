@@ -77,14 +77,14 @@ export function displayPhoneFromUser(user: {
   return user.email ?? "";
 }
 
-/**
- * Sign in with mobile + 6-digit PIN (no SMS provider required).
- * First visit registers the number; return visits verify the same PIN.
- */
-export async function signInOrRegisterWithPhonePin(
+export async function signInWithPhonePin(
   phone: string,
   pin: string
-): Promise<{ user: import("@supabase/supabase-js").User | null; error: string | null }> {
+): Promise<{
+  user: import("@supabase/supabase-js").User | null;
+  error: string | null;
+  needsSignup?: boolean;
+}> {
   const normalized = normalizeIndianPhone(phone);
   const email = phoneToAuthEmail(normalized);
 
@@ -101,9 +101,19 @@ export async function signInOrRegisterWithPhonePin(
     signInErr?.message?.toLowerCase().includes("invalid login") ||
     signInErr?.message?.toLowerCase().includes("invalid credentials");
 
-  if (!invalidCreds) {
-    return { user: null, error: signInErr?.message ?? "Sign in failed" };
+  if (invalidCreds) {
+    return { user: null, error: null, needsSignup: true };
   }
+
+  return { user: null, error: signInErr?.message ?? "Sign in failed" };
+}
+
+export async function registerWithPhonePin(
+  phone: string,
+  pin: string
+): Promise<{ user: import("@supabase/supabase-js").User | null; error: string | null }> {
+  const normalized = normalizeIndianPhone(phone);
+  const email = phoneToAuthEmail(normalized);
 
   const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
     email,
@@ -129,8 +139,22 @@ export async function signInOrRegisterWithPhonePin(
     user: null,
     error:
       retry.error?.message ??
-      "Account created. If email confirmation is enabled in Supabase, disable it for phone sign-in or confirm the account.",
+      "Account created. If email confirmation is enabled in Supabase, disable it for phone sign-in.",
   };
+}
+
+/**
+ * Sign in with mobile + 6-digit PIN (no SMS provider required).
+ * First visit registers the number; return visits verify the same PIN.
+ */
+export async function signInOrRegisterWithPhonePin(
+  phone: string,
+  pin: string
+): Promise<{ user: import("@supabase/supabase-js").User | null; error: string | null }> {
+  const signIn = await signInWithPhonePin(phone, pin);
+  if (signIn.user) return { user: signIn.user, error: null };
+  if (!signIn.needsSignup) return { user: null, error: signIn.error };
+  return registerWithPhonePin(phone, pin);
 }
 
 /** @deprecated SMS OTP — only works when Supabase Phone provider is enabled */

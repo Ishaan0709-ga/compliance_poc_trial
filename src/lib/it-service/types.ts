@@ -41,6 +41,21 @@ export interface ComplianceMaster {
   dueLogic: string;
   description: string;
   evidenceTypes: string[];
+  /** Excel Applicable_For — empty = all entity types */
+  entityTypes?: EntityType[];
+}
+
+export interface CalendarItem {
+  id: string;
+  companyId: string;
+  complianceId: string;
+  dueDate: string;
+  /** System-generated due date before manual override */
+  systemDueDate?: string;
+  period: string;
+  status: CalendarStatus;
+  owner: string;
+  riskLevel: RiskLevel;
 }
 
 export type RuleOperator = "=" | ">" | ">=" | "includes" | "it_sector";
@@ -189,4 +204,6 @@ export interface ITServiceState {
   domainScores: DomainScore[];
   notifications: NotificationRecord[];
   recentActivity: ActivityRecord[];
+  /** Manual due-date overrides keyed by calendar item id */
+  dueDateOverrides: Record<string, string>;
 }

@@ -11,7 +11,10 @@ import {
   getDefaultState,
   loadState,
   markEvidenceComplete as markComplete,
+  markNotificationsSent,
   saveProfile,
+  updateCalendarDueDate,
+  clearCalendarDueDateOverride,
 } from "./storage";
 import { setITServiceUserId } from "./auth";
 import { supabase } from "@/integrations/supabase/client";
@@ -29,6 +32,9 @@ type ITServiceContextValue = {
     complianceId: string;
     calendarItemId?: string;
   }) => void;
+  updateDueDate: (itemId: string, dueDate: string) => void;
+  resetDueDate: (itemId: string) => void;
+  markWhatsAppSent: (notificationIds: string[]) => void;
   hasProfile: boolean;
   isOnboarded: boolean;
 };
@@ -89,6 +95,21 @@ export function ITServiceProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  const updateDueDate = useCallback((itemId: string, dueDate: string) => {
+    const next = updateCalendarDueDate(itemId, dueDate);
+    if (next) setState(next);
+  }, []);
+
+  const resetDueDate = useCallback((itemId: string) => {
+    const next = clearCalendarDueDateOverride(itemId);
+    if (next) setState(next);
+  }, []);
+
+  const markWhatsAppSent = useCallback((notificationIds: string[]) => {
+    const next = markNotificationsSent(notificationIds);
+    if (next) setState(next);
+  }, []);
+
   return (
     <ITServiceContext.Provider
       value={{
@@ -97,6 +118,9 @@ export function ITServiceProvider({ children }: { children: ReactNode }) {
         setProfile,
         uploadEvidence,
         markEvidenceComplete,
+        updateDueDate,
+        resetDueDate,
+        markWhatsAppSent,
         hasProfile: !!state.profile,
         isOnboarded: !!state.profile?.onboardingComplete,
       }}

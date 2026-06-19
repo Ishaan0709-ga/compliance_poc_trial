@@ -95,12 +95,13 @@ export function normalizeProfile(profile: CompanyProfile): CompanyProfile {
 export function recomputeState(
   profile: CompanyProfile,
   evidence: EvidenceRecord[] = [],
-  previousScores: ComplianceScore[] = []
+  previousScores: ComplianceScore[] = [],
+  dueDateOverrides: Record<string, string> = {}
 ): ITServiceState {
   const normalized = normalizeProfile(profile);
   const applicable = runRuleEngine(normalized);
   const applicableIds = getApplicableComplianceIds(applicable);
-  let calendar = generateCalendar(normalized, applicableIds);
+  let calendar = generateCalendar(normalized, applicableIds, new Date(), 12, dueDateOverrides);
   calendar = applyEvidenceValidation(calendar, evidence);
   const { scores, domainScores, overall } = computeScores(
     normalized.companyId,
@@ -148,6 +149,7 @@ export function recomputeState(
     domainScores,
     notifications,
     recentActivity,
+    dueDateOverrides,
     kpis: {
       overallScore: overall,
       openActions,
@@ -177,7 +179,8 @@ export function loadState(): ITServiceState | null {
     const parsed = JSON.parse(raw) as ITServiceState;
     if (!parsed.profile) return null;
     const previousScores = parsed.scores ?? [];
-    const state = recomputeState(parsed.profile, parsed.evidence || [], previousScores);
+    const overrides = parsed.dueDateOverrides ?? {};
+    const state = recomputeState(parsed.profile, parsed.evidence || [], previousScores, overrides);
     return {
       ...state,
       recentActivity: mergeActivity(parsed.recentActivity ?? [], state.recentActivity),
@@ -204,7 +207,8 @@ export function saveProfile(profile: CompanyProfile): ITServiceState {
   const existing = loadState();
   const evidence = existing?.evidence || [];
   const previousScores = pickPreviousScores(existing);
-  const state = recomputeState(profile, evidence, previousScores);
+  const overrides = existing?.dueDateOverrides ?? {};
+  const state = recomputeState(profile, evidence, previousScores, overrides);
   const merged = {
     ...state,
     recentActivity: mergeActivity(existing?.recentActivity ?? [], state.recentActivity),
@@ -242,7 +246,7 @@ export function addEvidence(
     validationStatus: record.validationStatus || "approved",
     source: record.source ?? "upload",
   };
-  const state = recomputeState(current.profile, [...withoutDuplicate, evidence], current.scores);
+  const state = recomputeState(current.profile, [...withoutDuplicate, evidence], current.scores, current.dueDateOverrides ?? {});
   const merged = {
     ...state,
     recentActivity: mergeActivity(current.recentActivity ?? [], state.recentActivity),
@@ -283,11 +287,61 @@ export function markEvidenceComplete(record: {
     source: "attestation",
   };
 
-  const state = recomputeState(current.profile, [...withoutFocal, evidence], current.scores);
+  const state = recomputeState(current.profile, [...withoutFocal, evidence], current.scores, current.dueDateOverrides ?? {});
   const merged = {
     ...state,
     recentActivity: mergeActivity(current.recentActivity ?? [], state.recentActivity),
   };
+  saveState(merged);
+  return merged;
+}
+
+export function updateCalendarDueDate(
+  itemId: string,
+  newDueDate: string
+): ITServiceState | null {
+  const current = loadState();
+  if (!current?.profile) return null;
+  const overrides = { ...(current.dueDateOverrides ?? {}), [itemId]: newDueDate };
+  return persistRecomputed(current, overrides);
+}
+
+export function clearCalendarDueDateOverride(itemId: string): ITServiceState | null {
+  const current = loadState();
+  if (!current?.profile) return null;
+  const overrides = { ...(current.dueDateOverrides ?? {}) };
+  delete overrides[itemId];
+  return persistRecomputed(current, overrides);
+}
+
+function persistRecomputed(
+  current: ITServiceState,
+  overrides: Record<string, string>
+): ITServiceState {
+  const state = recomputeState(
+    current.profile!,
+    current.evidence,
+    current.scores,
+    overrides
+  );
+  const merged = {
+    ...state,
+    recentActivity: mergeActivity(current.recentActivity ?? [], state.recentActivity),
+  };
+  saveState(merged);
+  return merged;
+}
+
+export function markNotificationsSent(notificationIds: string[]): ITServiceState | null {
+  const current = loadState();
+  if (!current?.profile) return null;
+  const sentAt = new Date().toISOString();
+  const notifications = current.notifications.map((n) =>
+    notificationIds.includes(n.notificationId)
+      ? { ...n, status: "sent" as const, sentAt }
+      : n
+  );
+  const merged = { ...current, notifications };
   saveState(merged);
   return merged;
 }
@@ -304,6 +358,7 @@ export function getDefaultState(): ITServiceState {
     domainScores: [],
     notifications: [],
     recentActivity: [],
+    dueDateOverrides: {},
     kpis: emptyKpis(),
   };
 }

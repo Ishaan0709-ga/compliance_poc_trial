@@ -3,29 +3,26 @@ import { useMemo, useState } from "react";
 import { useITService } from "@/lib/it-service/context";
 import { ITServiceShell } from "@/components/it-service/ITServiceShell";
 import { RequireOnboarding } from "@/components/it-service/RequireOnboarding";
-import { PageHeader, Card, Pill } from "@/components/ui-kit";
+import { PageHeader, Card, Pill, Btn } from "@/components/ui-kit";
 import { getCompliance, DOMAINS } from "@/lib/it-service/master-data";
 import type { CalendarItem, CalendarStatus } from "@/lib/it-service/types";
-import {
-  ComplianceEvidencePanel,
-} from "@/components/it-service/ComplianceEvidenceActions";
+import { ComplianceEvidencePanel } from "@/components/it-service/ComplianceEvidenceActions";
 import { evidenceForCalendarItem } from "@/lib/it-service/compliance-utils";
+import {
+  STATUS_STYLES,
+  WEEKDAYS,
+  buildMonthGrid,
+  chipClass,
+} from "@/lib/it-service/calendar-ui";
+import { sendWhatsAppBatch } from "@/lib/it-service/whatsapp.functions";
 import { Link } from "@tanstack/react-router";
-import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, MessageCircle, Loader2 } from "lucide-react";
 
 export const Route = createFileRoute("/it-service/calendar")({
   component: CalendarPage,
 });
 
 type ViewMode = "month" | "quarter" | "year" | "list";
-
-const STATUS_LEGEND: { status: CalendarStatus | "event"; label: string; className: string }[] = [
-  { status: "completed", label: "Completed", className: "bg-success/15 text-success border-success/30" },
-  { status: "in_progress", label: "In Progress", className: "bg-warning/15 text-warning border-warning/30" },
-  { status: "pending", label: "Pending", className: "bg-primary/10 text-primary border-primary/25" },
-  { status: "overdue", label: "Overdue", className: "bg-destructive/15 text-destructive border-destructive/30" },
-  { status: "event", label: "Event Based", className: "bg-violet-500/15 text-violet-700 border-violet-500/30" },
-];
 
 function CalendarPage() {
   return (
@@ -35,28 +32,82 @@ function CalendarPage() {
   );
 }
 
-function statusChipClass(item: CalendarItem, compFrequency?: string): string {
-  if (compFrequency === "Event Based") {
-    return "bg-violet-500/15 text-violet-700 border-violet-500/30";
-  }
-  switch (item.status) {
-    case "completed":
-      return "bg-success/15 text-success border-success/30";
-    case "in_progress":
-      return "bg-warning/15 text-warning border-warning/30";
-    case "overdue":
-      return "bg-destructive/15 text-destructive border-destructive/30";
-    default:
-      return "bg-primary/10 text-primary border-primary/25";
-  }
-}
+function MonthGrid({
+  year,
+  month,
+  items,
+  compact = false,
+  onSelectItem,
+}: {
+  year: number;
+  month: number;
+  items: CalendarItem[];
+  compact?: boolean;
+  onSelectItem?: (id: string) => void;
+}) {
+  const cells = buildMonthGrid(year, month, items);
+  const label = new Date(year, month, 1).toLocaleString("en-IN", {
+    month: compact ? "short" : "long",
+    year: "numeric",
+  });
 
-function domainPrefix(domainId: string): string {
-  return domainId;
+  return (
+    <div className={compact ? "" : "rounded-xl border border-border bg-gradient-to-b from-surface-1 to-background p-3 shadow-sm"}>
+      {compact && (
+        <div className="mb-2 text-center text-[12px] font-bold text-ink-2">{label}</div>
+      )}
+      <div className={`grid grid-cols-7 gap-px overflow-hidden rounded-lg border border-border/80 bg-border/60 ${compact ? "text-[9px]" : "text-[11px]"}`}>
+        {WEEKDAYS.map((d) => (
+          <div
+            key={d}
+            className={`bg-surface-2/90 text-center font-bold text-ink-4 ${compact ? "px-0.5 py-1" : "px-1 py-2"}`}
+          >
+            {compact ? d.slice(0, 1) : d}
+          </div>
+        ))}
+        {cells.map((cell, idx) => (
+          <div
+            key={idx}
+            className={`min-h-[${compact ? "52" : "92"}px] bg-background p-1 ${cell.date ? "" : "bg-surface-2/40"}`}
+            style={{ minHeight: compact ? 52 : 92 }}
+          >
+            {cell.date && (
+              <>
+                <div className={`mb-0.5 font-bold text-ink-3 ${compact ? "text-[10px]" : "text-[11px]"}`}>
+                  {cell.date.getDate()}
+                </div>
+                <div className="space-y-0.5">
+                  {cell.items.slice(0, compact ? 2 : 3).map((item) => {
+                    const comp = getCompliance(item.complianceId)!;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => onSelectItem?.(item.id)}
+                        title={`${comp.name} · ${item.status}`}
+                        className={`block w-full text-left ${chipClass(item, comp.frequency)}`}
+                      >
+                        {comp.domainId} {comp.name}
+                      </button>
+                    );
+                  })}
+                  {cell.items.length > (compact ? 2 : 3) && (
+                    <div className="text-[9px] font-bold text-primary">
+                      +{cell.items.length - (compact ? 2 : 3)} more
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function CalendarContent() {
-  const { state } = useITService();
+  const { state, updateDueDate, resetDueDate, markWhatsAppSent } = useITService();
   const [view, setView] = useState<ViewMode>("month");
   const [cursor, setCursor] = useState(() => {
     const d = new Date();
@@ -68,6 +119,9 @@ function CalendarContent() {
   const [owner, setOwner] = useState("");
   const [risk, setRisk] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [editDate, setEditDate] = useState("");
+  const [waBusy, setWaBusy] = useState(false);
+  const [waMsg, setWaMsg] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     return state.calendar.filter((item) => {
@@ -83,76 +137,110 @@ function CalendarContent() {
   }, [state.calendar, search, domain, status, owner, risk]);
 
   const owners = [...new Set(state.calendar.map((c) => c.owner))].sort();
-  const pendingNotifications = state.notifications.filter((n) => n.status === "pending").length;
-
+  const pendingNotifications = state.notifications.filter((n) => n.status === "pending");
   const monthLabel = cursor.toLocaleString("en-IN", { month: "long", year: "numeric" });
+  const quarterIndex = Math.floor(cursor.getMonth() / 3);
+  const quarterYear = cursor.getFullYear();
 
   const itemsInMonth = useMemo(() => {
     const key = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}`;
     return filtered.filter((i) => i.dueDate.startsWith(key));
   }, [filtered, cursor]);
 
-  const itemsInQuarter = useMemo(() => {
-    const y = cursor.getFullYear();
-    const q = Math.floor(cursor.getMonth() / 3);
-    const start = new Date(y, q * 3, 1);
-    const end = new Date(y, q * 3 + 3, 0);
-    const startStr = start.toISOString().slice(0, 10);
-    const endStr = end.toISOString().slice(0, 10);
-    return filtered.filter((i) => i.dueDate >= startStr && i.dueDate <= endStr);
-  }, [filtered, cursor]);
+  const quarterMonths = useMemo(() => {
+    const start = quarterIndex * 3;
+    return [0, 1, 2].map((offset) => {
+      const m = start + offset;
+      const key = `${quarterYear}-${String(m + 1).padStart(2, "0")}`;
+      return {
+        year: quarterYear,
+        month: m,
+        items: filtered.filter((i) => i.dueDate.startsWith(key)),
+      };
+    });
+  }, [filtered, quarterIndex, quarterYear]);
 
-  const itemsInYear = useMemo(() => {
-    const y = String(cursor.getFullYear());
-    return filtered.filter((i) => i.dueDate.startsWith(y));
+  const yearMonths = useMemo(() => {
+    return Array.from({ length: 12 }, (_, m) => {
+      const key = `${cursor.getFullYear()}-${String(m + 1).padStart(2, "0")}`;
+      return {
+        year: cursor.getFullYear(),
+        month: m,
+        items: filtered.filter((i) => i.dueDate.startsWith(key)),
+      };
+    });
   }, [filtered, cursor]);
 
   const shiftCursor = (delta: number) => {
     setCursor((prev) => {
-      if (view === "year") {
-        return new Date(prev.getFullYear() + delta, prev.getMonth(), 1);
-      }
-      if (view === "quarter") {
-        return new Date(prev.getFullYear(), prev.getMonth() + delta * 3, 1);
-      }
+      if (view === "year") return new Date(prev.getFullYear() + delta, prev.getMonth(), 1);
+      if (view === "quarter") return new Date(prev.getFullYear(), prev.getMonth() + delta * 3, 1);
       return new Date(prev.getFullYear(), prev.getMonth() + delta, 1);
     });
   };
-
-  const calendarDays = useMemo(() => {
-    const year = cursor.getFullYear();
-    const month = cursor.getMonth();
-    const first = new Date(year, month, 1);
-    const startPad = first.getDay();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const cells: { date: Date | null; items: CalendarItem[] }[] = [];
-    for (let i = 0; i < startPad; i++) cells.push({ date: null, items: [] });
-    for (let d = 1; d <= daysInMonth; d++) {
-      const date = new Date(year, month, d);
-      const key = date.toISOString().slice(0, 10);
-      cells.push({
-        date,
-        items: itemsInMonth.filter((i) => i.dueDate === key),
-      });
-    }
-    return cells;
-  }, [cursor, itemsInMonth]);
-
-  const listItems =
-    view === "year"
-      ? itemsInYear
-      : view === "quarter"
-        ? itemsInQuarter
-        : view === "list"
-          ? filtered.slice(0, 80)
-          : itemsInMonth;
 
   const headerTitle =
     view === "year"
       ? String(cursor.getFullYear())
       : view === "quarter"
-        ? `Q${Math.floor(cursor.getMonth() / 3) + 1} ${cursor.getFullYear()}`
+        ? `Q${quarterIndex + 1} ${quarterYear}`
         : monthLabel;
+
+  const listItems =
+    view === "year"
+      ? filtered.filter((i) => i.dueDate.startsWith(String(cursor.getFullYear())))
+      : view === "quarter"
+        ? filtered.filter((i) => {
+            const d = new Date(i.dueDate + "T00:00:00");
+            return d.getFullYear() === quarterYear && Math.floor(d.getMonth() / 3) === quarterIndex;
+          })
+        : view === "list"
+          ? filtered
+          : itemsInMonth;
+
+  const handleSendWhatsApp = async () => {
+    const recipient = state.profile?.primaryContact;
+    if (!recipient) {
+      setWaMsg("Add primary contact (mobile) on company profile for WhatsApp.");
+      return;
+    }
+    const pending = pendingNotifications.slice(0, 5);
+    if (pending.length === 0) {
+      setWaMsg("No pending reminders for today — adjust dates or wait for due window.");
+      return;
+    }
+    setWaBusy(true);
+    setWaMsg(null);
+    try {
+      const result = await sendWhatsAppBatch({
+        data: {
+          recipient,
+          messages: pending.map((n) => ({
+            notificationId: n.notificationId,
+            message: n.message,
+          })),
+        },
+      });
+      const sentIds = result.results.filter((r) => r.result.ok).map((r) => r.notificationId);
+      if (sentIds.length) markWhatsAppSent(sentIds);
+      const demo = result.results.some((r) => r.result.demo);
+      setWaMsg(
+        demo
+          ? `Demo mode: ${sentIds.length} message(s) queued (add Twilio env vars for live send).`
+          : `Sent ${sentIds.length} WhatsApp reminder(s) via Twilio.`
+      );
+    } catch (e) {
+      setWaMsg(e instanceof Error ? e.message : "WhatsApp send failed");
+    } finally {
+      setWaBusy(false);
+    }
+  };
+
+  const saveDueDate = (itemId: string) => {
+    if (!editDate) return;
+    updateDueDate(itemId, editDate);
+    setEditDate("");
+  };
 
   return (
     <ITServiceShell>
@@ -166,40 +254,40 @@ function CalendarContent() {
 
       <PageHeader
         title="Compliance calendar"
-        subtitle={`Generated from compliance master, frequency rules and your profile · ${pendingNotifications} WhatsApp reminder(s) queued`}
+        subtitle={`Generated from compliance master & rule engine · ${pendingNotifications.length} WhatsApp reminder(s) queued`}
+        actions={
+          <Btn variant="o" onClick={handleSendWhatsApp} disabled={waBusy}>
+            {waBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MessageCircle className="h-3.5 w-3.5" />}
+            Send WhatsApp demo
+          </Btn>
+        }
       />
 
-      <Card className="mb-4">
+      {waMsg && (
+        <div className="mb-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-[12px] text-ink-2">
+          {waMsg}
+        </div>
+      )}
+
+      <Card className="mb-4 border-primary/10 bg-gradient-to-br from-surface-1 via-background to-sky-50/30">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => shiftCursor(-1)}
-              className="rounded-lg border border-border p-1.5 hover:bg-surface-2"
-              aria-label="Previous"
-            >
+            <button type="button" onClick={() => shiftCursor(-1)} className="rounded-lg border border-border bg-white p-1.5 shadow-sm hover:bg-surface-2" aria-label="Previous">
               <ChevronLeft className="h-4 w-4" />
             </button>
-            <span className="min-w-[140px] text-center text-[14px] font-bold">{headerTitle}</span>
-            <button
-              type="button"
-              onClick={() => shiftCursor(1)}
-              className="rounded-lg border border-border p-1.5 hover:bg-surface-2"
-              aria-label="Next"
-            >
+            <span className="min-w-[140px] text-center text-[15px] font-extrabold tracking-tight text-ink">{headerTitle}</span>
+            <button type="button" onClick={() => shiftCursor(1)} className="rounded-lg border border-border bg-white p-1.5 shadow-sm hover:bg-surface-2" aria-label="Next">
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>
-          <div className="flex flex-wrap gap-1">
+          <div className="flex flex-wrap gap-1 rounded-lg border border-border bg-surface-2/80 p-1">
             {(["month", "quarter", "year", "list"] as ViewMode[]).map((v) => (
               <button
                 key={v}
                 type="button"
                 onClick={() => setView(v)}
-                className={`rounded-lg px-3 py-1.5 text-[12px] font-bold capitalize ${
-                  view === v
-                    ? "bg-primary text-primary-foreground"
-                    : "border border-border bg-surface-2 text-ink-2 hover:bg-surface-3"
+                className={`rounded-md px-3 py-1.5 text-[12px] font-bold capitalize transition-colors ${
+                  view === v ? "bg-primary text-primary-foreground shadow-sm" : "text-ink-3 hover:bg-white hover:text-ink"
                 }`}
               >
                 {v}
@@ -208,181 +296,132 @@ function CalendarContent() {
           </div>
         </div>
 
-        <div className="mt-3 flex flex-wrap gap-3 border-t border-border pt-3">
-          {STATUS_LEGEND.map((s) => (
-            <span key={s.label} className="flex items-center gap-1.5 text-[11px] text-ink-3">
-              <span className={`h-2 w-2 rounded-full border ${s.className}`} />
+        <div className="mt-3 flex flex-wrap gap-4 border-t border-border/60 pt-3">
+          {Object.entries(STATUS_STYLES).map(([key, s]) => (
+            <span key={key} className="flex items-center gap-1.5 text-[11px] font-medium text-ink-3">
+              <span className={`h-2.5 w-2.5 rounded-full ${s.dot}`} />
               {s.label}
             </span>
           ))}
         </div>
 
-        <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3">
-          <input
-            placeholder="Search…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="rounded-lg border border-border bg-surface-2 px-3 py-1.5 text-[13px] outline-none"
-          />
-          <select
-            value={domain}
-            onChange={(e) => setDomain(e.target.value)}
-            className="rounded-lg border border-border bg-surface-2 px-2 py-1.5 text-[12px]"
-          >
+        <div className="mt-3 flex flex-wrap gap-2 border-t border-border/60 pt-3">
+          <input placeholder="Search…" value={search} onChange={(e) => setSearch(e.target.value)} className="rounded-lg border border-border bg-white px-3 py-1.5 text-[13px] shadow-sm outline-none focus:border-primary" />
+          <select value={domain} onChange={(e) => setDomain(e.target.value)} className="rounded-lg border border-border bg-white px-2 py-1.5 text-[12px]">
             <option value="">All domains</option>
-            {DOMAINS.map((d) => (
-              <option key={d.id} value={d.id}>{d.name}</option>
-            ))}
+            {DOMAINS.map((d) => (<option key={d.id} value={d.id}>{d.name}</option>))}
           </select>
-          <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            className="rounded-lg border border-border bg-surface-2 px-2 py-1.5 text-[12px]"
-          >
+          <select value={status} onChange={(e) => setStatus(e.target.value)} className="rounded-lg border border-border bg-white px-2 py-1.5 text-[12px]">
             <option value="">All statuses</option>
-            {(["pending", "overdue", "completed", "in_progress"] as CalendarStatus[]).map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
+            {(["pending", "overdue", "completed", "in_progress"] as CalendarStatus[]).map((s) => (<option key={s} value={s}>{s}</option>))}
           </select>
-          <select
-            value={owner}
-            onChange={(e) => setOwner(e.target.value)}
-            className="rounded-lg border border-border bg-surface-2 px-2 py-1.5 text-[12px]"
-          >
+          <select value={owner} onChange={(e) => setOwner(e.target.value)} className="rounded-lg border border-border bg-white px-2 py-1.5 text-[12px]">
             <option value="">All owners</option>
-            {owners.map((o) => (
-              <option key={o} value={o}>{o}</option>
-            ))}
+            {owners.map((o) => (<option key={o} value={o}>{o}</option>))}
           </select>
-          <select
-            value={risk}
-            onChange={(e) => setRisk(e.target.value)}
-            className="rounded-lg border border-border bg-surface-2 px-2 py-1.5 text-[12px]"
-          >
+          <select value={risk} onChange={(e) => setRisk(e.target.value)} className="rounded-lg border border-border bg-white px-2 py-1.5 text-[12px]">
             <option value="">All priorities</option>
-            {["Critical", "High", "Medium", "Low"].map((r) => (
-              <option key={r} value={r}>{r}</option>
-            ))}
+            {["Critical", "High", "Medium", "Low"].map((r) => (<option key={r} value={r}>{r}</option>))}
           </select>
         </div>
       </Card>
 
       {view === "month" && (
-        <Card title={monthLabel} className="mb-4">
-          <div className="grid grid-cols-7 gap-px overflow-hidden rounded-lg border border-border bg-border text-[11px]">
-            {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-              <div key={d} className="bg-surface-2 px-1 py-2 text-center font-bold text-ink-4">
-                {d}
-              </div>
-            ))}
-            {calendarDays.map((cell, idx) => (
-              <div
-                key={idx}
-                className={`min-h-[88px] bg-background p-1 ${cell.date ? "" : "bg-surface-2/50"}`}
-              >
-                {cell.date && (
-                  <>
-                    <div className="mb-1 text-[11px] font-bold text-ink-3">{cell.date.getDate()}</div>
-                    <div className="space-y-0.5">
-                      {cell.items.slice(0, 3).map((item) => {
-                        const comp = getCompliance(item.complianceId)!;
-                        return (
-                          <div
-                            key={item.id}
-                            title={`${comp.name} · ${item.owner} · ${item.status}`}
-                            className={`truncate rounded border px-1 py-0.5 text-[9px] font-semibold ${statusChipClass(item, comp.frequency)}`}
-                          >
-                            {domainPrefix(comp.domainId)} {comp.name}
-                          </div>
-                        );
-                      })}
-                      {cell.items.length > 3 && (
-                        <div className="text-[9px] font-bold text-ink-4">
-                          +{cell.items.length - 3} more
-                        </div>
-                      )}
-                    </div>
-                  </>
-                )}
-              </div>
-            ))}
-          </div>
+        <Card title={monthLabel} className="mb-4 overflow-hidden">
+          <MonthGrid
+            year={cursor.getFullYear()}
+            month={cursor.getMonth()}
+            items={itemsInMonth}
+            onSelectItem={(id) => setExpandedId(id)}
+          />
         </Card>
       )}
 
-      <Card title={`${listItems.length} items`}>
+      {view === "quarter" && (
+        <div className="mb-4 grid gap-4 lg:grid-cols-3">
+          {quarterMonths.map(({ year, month, items }) => (
+            <Card key={month} title="" className="overflow-hidden p-2">
+              <MonthGrid year={year} month={month} items={items} compact onSelectItem={(id) => setExpandedId(id)} />
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {view === "year" && (
+        <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {yearMonths.map(({ year, month, items }) => (
+            <Card key={month} className="overflow-hidden p-2">
+              <MonthGrid year={year} month={month} items={items} compact onSelectItem={(id) => setExpandedId(id)} />
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <Card title={`${listItems.length} items · tap to expand`}>
         <div className="divide-y divide-border">
           {listItems.length === 0 ? (
-            <p className="py-4 text-[13px] text-ink-3">No calendar items for this period.</p>
+            <p className="py-4 text-[13px] text-ink-3">No calendar items for this period. Save company profile as Private Limited with GST & employees to generate more.</p>
           ) : (
-            listItems
-              .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
-              .map((item) => {
-                const comp = getCompliance(item.complianceId)!;
-                const due = new Date(item.dueDate + "T00:00:00");
-                const ev = evidenceForCalendarItem(item, state.calendar, state.evidence);
-                const isExpanded = expandedId === item.id;
-                const needsAction = item.status !== "completed";
-                const notif = state.notifications.find(
-                  (n) => n.complianceId === item.complianceId && n.dueDate === item.dueDate
-                );
+            listItems.sort((a, b) => a.dueDate.localeCompare(b.dueDate)).map((item) => {
+              const comp = getCompliance(item.complianceId)!;
+              const due = new Date(item.dueDate + "T00:00:00");
+              const ev = evidenceForCalendarItem(item, state.calendar, state.evidence);
+              const isExpanded = expandedId === item.id;
+              const notif = state.notifications.find((n) => n.complianceId === item.complianceId && n.dueDate === item.dueDate);
 
-                return (
-                  <div key={item.id} className="py-3">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 text-center">
-                        <div className="text-[18px] font-extrabold">{due.getDate()}</div>
-                        <div className="text-[9px] font-bold uppercase text-ink-4">
-                          {due.toLocaleString("en-IN", { month: "short" })}
-                        </div>
+              return (
+                <div key={item.id} className="py-3">
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 shrink-0 overflow-hidden rounded-xl border border-border bg-gradient-to-b from-white to-surface-2 text-center shadow-sm">
+                      <div className={`h-1 ${item.status === "overdue" ? "bg-rose-500" : item.status === "completed" ? "bg-emerald-500" : "bg-sky-500"}`} />
+                      <div className="text-[20px] font-extrabold leading-tight">{due.getDate()}</div>
+                      <div className="pb-1 text-[9px] font-bold uppercase text-ink-4">{due.toLocaleString("en-IN", { month: "short" })}</div>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`rounded-md border px-1.5 py-0.5 text-[10px] font-bold ${chipClass(item, comp.frequency)}`}>{comp.domainId}</span>
+                        <span className="text-[13px] font-bold">{comp.name}</span>
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-[13px] font-bold">{comp.name}</div>
-                        <div className="text-[12px] text-ink-3">
-                          {comp.domainId} · {item.period} · Owner: {item.owner} · {comp.riskLevel}
-                        </div>
-                        {notif && (
-                          <div className="mt-1 text-[11px] text-ink-4" title={notif.message}>
-                            WhatsApp: {notif.notificationType.replace(/_/g, " ")}
-                          </div>
-                        )}
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <Pill
-                          tone={
-                            item.status === "completed"
-                              ? "done"
-                              : item.status === "overdue"
-                                ? "miss"
-                                : "pend"
-                          }
-                        >
-                          {item.status.toUpperCase()}
-                        </Pill>
-                        {needsAction && (
-                          <button
-                            type="button"
-                            onClick={() => setExpandedId(isExpanded ? null : item.id)}
-                            className="mt-1 block text-[11px] font-bold text-primary hover:underline"
-                          >
-                            {isExpanded ? "Close" : ev ? "Update →" : "Upload →"}
+                      <div className="mt-0.5 text-[12px] text-ink-3">{item.period} · Owner: {item.owner} · {comp.riskLevel}</div>
+                      {item.systemDueDate && item.systemDueDate !== item.dueDate && (
+                        <div className="mt-0.5 text-[11px] text-amber-700">Adjusted from {item.systemDueDate}</div>
+                      )}
+                      {notif && <div className="mt-1 text-[11px] text-emerald-700">WhatsApp: {notif.message}</div>}
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <Pill tone={item.status === "completed" ? "done" : item.status === "overdue" ? "miss" : "pend"}>{item.status.toUpperCase()}</Pill>
+                      <button type="button" onClick={() => { setExpandedId(isExpanded ? null : item.id); setEditDate(item.dueDate); }} className="mt-1 block text-[11px] font-bold text-primary hover:underline">
+                        {isExpanded ? "Close" : "Details →"}
+                      </button>
+                    </div>
+                  </div>
+                  {isExpanded && (
+                    <div className="mt-3 rounded-lg border border-border bg-surface-2/40 p-3 pl-4">
+                      <div className="mb-3 flex flex-wrap items-end gap-2">
+                        <label className="text-[11px] font-bold text-ink-4">
+                          Due date
+                          <input
+                            type="date"
+                            value={editDate || item.dueDate}
+                            onChange={(e) => setEditDate(e.target.value)}
+                            className="mt-1 block rounded-lg border border-border bg-white px-2 py-1.5 text-[13px]"
+                          />
+                        </label>
+                        <Btn variant="o" onClick={() => saveDueDate(item.id)}>Save date</Btn>
+                        {item.systemDueDate && (
+                          <button type="button" className="text-[11px] text-ink-4 underline" onClick={() => { resetDueDate(item.id); setEditDate(item.systemDueDate!); }}>
+                            Reset to system date
                           </button>
                         )}
                       </div>
+                      {item.status !== "completed" && (
+                        <ComplianceEvidencePanel complianceId={item.complianceId} calendarItemId={item.id} onClose={() => setExpandedId(null)} onComplete={() => setExpandedId(null)} />
+                      )}
                     </div>
-                    {isExpanded && (
-                      <div className="mt-3 pl-16">
-                        <ComplianceEvidencePanel
-                          complianceId={item.complianceId}
-                          calendarItemId={item.id}
-                          onClose={() => setExpandedId(null)}
-                          onComplete={() => setExpandedId(null)}
-                        />
-                      </div>
-                    )}
-                  </div>
-                );
-              })
+                  )}
+                </div>
+              );
+            })
           )}
         </div>
       </Card>

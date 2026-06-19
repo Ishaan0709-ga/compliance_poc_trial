@@ -39,6 +39,8 @@ function dueFromLogic(
   switch (dueLogic) {
     case "monthly_11th":
       return new Date(next.getFullYear(), next.getMonth(), 11);
+    case "monthly_7th":
+      return new Date(next.getFullYear(), next.getMonth(), 7);
     case "monthly_13th":
       return new Date(next.getFullYear(), next.getMonth(), 13);
     case "monthly_15th":
@@ -86,7 +88,8 @@ export function generateCalendar(
   profile: CompanyProfile,
   complianceIds: string[],
   from: Date = new Date(),
-  months = 6
+  months = 12,
+  dueDateOverrides: Record<string, string> = {}
 ): CalendarItem[] {
   const items: CalendarItem[] = [];
   const today = ymd(from);
@@ -142,14 +145,18 @@ export function generateCalendar(
             : `Q${Math.floor(m.getMonth() / 3) + 1} ${m.getFullYear()}`;
 
       const dueStr = ymd(due);
+      const itemId = `${cid}-${period.replace(/\s/g, "-")}`;
+      const override = dueDateOverrides[itemId];
+      const finalDue = override ?? dueStr;
       let status: CalendarItem["status"] = "pending";
-      if (dueStr < today) status = "overdue";
+      if (finalDue < today) status = "overdue";
 
       items.push({
-        id: `${cid}-${period.replace(/\s/g, "-")}`,
+        id: itemId,
         companyId: profile.companyId,
         complianceId: cid,
-        dueDate: dueStr,
+        dueDate: finalDue,
+        systemDueDate: dueStr,
         period,
         status,
         owner: c.owner,

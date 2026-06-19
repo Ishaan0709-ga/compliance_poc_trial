@@ -1,6 +1,7 @@
 import { COMPLIANCES, RULES } from "./master-data";
 import { IT_SECTOR_INDUSTRIES } from "./profile-options";
 import type { ApplicableCompliance, CompanyProfile } from "./types";
+
 function evalRule(
   profile: CompanyProfile,
   field: string,
@@ -44,12 +45,28 @@ function evalRule(
   }
 }
 
-/** Rule engine: company profile → applicable compliances */
+function passesEntityGate(
+  profile: CompanyProfile,
+  entityTypes?: CompanyProfile["entityType"][]
+): boolean {
+  if (!entityTypes?.length) return true;
+  return entityTypes.includes(profile.entityType);
+}
+
+/** Rule engine: company profile → applicable compliances (Excel Table 4 + entityTypes) */
 export function runRuleEngine(profile: CompanyProfile): ApplicableCompliance[] {
   const now = new Date().toISOString();
-  const isPvtLtd = profile.entityType === "private_limited";
 
   return COMPLIANCES.map((c) => {
+    if (!passesEntityGate(profile, c.entityTypes)) {
+      return {
+        companyId: profile.companyId,
+        complianceId: c.id,
+        applicable: false,
+        generatedAt: now,
+      };
+    }
+
     const rules = RULES.filter((r) => r.complianceId === c.id);
     if (rules.length === 0) {
       return {
@@ -60,26 +77,9 @@ export function runRuleEngine(profile: CompanyProfile): ApplicableCompliance[] {
       };
     }
 
-    const baselineRules = rules.filter((r) => !r.privateLimitedPath);
-    const pvtRules = rules.filter((r) => r.privateLimitedPath);
-
-    const baselinePass =
-      baselineRules.length > 0 &&
-      baselineRules.every((r) => evalRule(profile, r.field, r.operator, r.value));
-
-    const pvtPass =
-      isPvtLtd &&
-      pvtRules.length > 0 &&
-      pvtRules.every((r) => evalRule(profile, r.field, r.operator, r.value));
-
-    let applicable: boolean;
-    if (pvtRules.length > 0 && baselineRules.length > 0) {
-      applicable = pvtPass || baselinePass;
-    } else if (pvtRules.length > 0) {
-      applicable = pvtPass;
-    } else {
-      applicable = baselinePass;
-    }
+    const applicable = rules.every((r) =>
+      evalRule(profile, r.field, r.operator, r.value)
+    );
 
     return {
       companyId: profile.companyId,

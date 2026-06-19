@@ -5,7 +5,8 @@ import { Btn } from "@/components/ui-kit";
 import { supabase } from "@/integrations/supabase/client";
 import {
   setITServiceUserId,
-  signInOrRegisterWithPhonePin,
+  signInWithPhonePin,
+  registerWithPhonePin,
 } from "@/lib/it-service/auth";
 import { loadState } from "@/lib/it-service/storage";
 
@@ -26,9 +27,12 @@ function ITServiceLoginPage() {
   const { redirect } = Route.useSearch();
   const [phone, setPhone] = useState("");
   const [pin, setPin] = useState("");
+  const [confirmPin, setConfirmPin] = useState("");
   const [step, setStep] = useState<"phone" | "pin">("phone");
+  const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
 
   const goNext = useCallback(() => {
     const state = loadState();
@@ -55,34 +59,68 @@ function ITServiceLoginPage() {
   const continueToPin = (e: React.FormEvent) => {
     e.preventDefault();
     setErr(null);
+    setInfo(null);
     const digits = phone.replace(/\D/g, "");
     if (digits.length < 10) {
       setErr("Enter a valid 10-digit mobile number.");
       return;
     }
     setStep("pin");
+    setMode("signin");
+    setPin("");
+    setConfirmPin("");
   };
 
   const verifyPin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErr(null);
+    setInfo(null);
     setBusy(true);
     try {
       if (pin.length < 6) {
         setErr("Enter a 6-digit PIN.");
         return;
       }
-      const { user, error } = await signInOrRegisterWithPhonePin(phone, pin);
-      if (error || !user) {
-        setErr(error ?? "Could not sign in. Try again.");
+
+      if (mode === "signup") {
+        if (confirmPin.length < 6) {
+          setErr("Confirm your 6-digit PIN.");
+          return;
+        }
+        if (pin !== confirmPin) {
+          setErr("PINs do not match.");
+          return;
+        }
+        const { user, error } = await registerWithPhonePin(phone, pin);
+        if (error || !user) {
+          setErr(error ?? "Could not create account.");
+          return;
+        }
+        setITServiceUserId(user.id);
+        setInfo("Account created. Welcome to ComplyOS IT Service.");
+        goNext();
         return;
       }
-      setITServiceUserId(user.id);
-      goNext();
+
+      const { user, error, needsSignup } = await signInWithPhonePin(phone, pin);
+      if (user) {
+        setITServiceUserId(user.id);
+        goNext();
+        return;
+      }
+      if (needsSignup) {
+        setMode("signup");
+        setInfo("New number — confirm your PIN to create an account.");
+        setConfirmPin("");
+        return;
+      }
+      setErr(error ?? "Could not sign in.");
     } finally {
       setBusy(false);
     }
   };
+
+  const displayPhone = `+91 ${phone.replace(/\D/g, "").slice(-10)}`;
 
   return (
     <div className="flex min-h-screen flex-col bg-gradient-onboard text-white">
@@ -104,27 +142,29 @@ function ITServiceLoginPage() {
       <div className="flex flex-1 items-center justify-center px-6 pb-20">
         <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white/5 p-8 backdrop-blur">
           <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.18em] text-white/50">
-            {step === "phone" ? "Step 1 of 2" : "Step 2 of 2"}
+            {step === "phone" ? "Step 1 of 2" : mode === "signup" ? "Create account" : "Sign in"}
           </div>
           <h1 className="text-[28px] font-extrabold tracking-[-0.03em]">
-            {step === "phone" ? "Sign in with mobile" : "Enter your PIN"}
+            {step === "phone"
+              ? "Mobile sign in"
+              : mode === "signup"
+                ? "Set your PIN"
+                : "Enter PIN"}
           </h1>
           <p className="mt-2 text-[14px] text-white/60">
             {step === "phone"
-              ? "Use your Indian mobile number. Your compliance data stays linked to this account."
-              : `+91 ${phone.replace(/\D/g, "").slice(-10)} — first time? Choose any 6-digit PIN. Next time, use the same PIN.`}
+              ? "Indian mobile number + 6-digit PIN. One account per number — your compliance data stays private."
+              : mode === "signup"
+                ? `${displayPhone} — choose a PIN you'll remember. Used for sign in and WhatsApp reminders.`
+                : `${displayPhone} — enter your PIN to continue.`}
           </p>
 
           {step === "phone" ? (
             <form onSubmit={continueToPin} className="mt-8 space-y-4">
               <div>
-                <label className="mb-1.5 block text-[12px] font-semibold text-white/80">
-                  Mobile number
-                </label>
+                <label className="mb-1.5 block text-[12px] font-semibold text-white/80">Mobile number</label>
                 <div className="flex overflow-hidden rounded-lg border border-white/15 bg-white/10">
-                  <span className="flex items-center border-r border-white/15 px-3 text-[14px] font-bold text-white/70">
-                    +91
-                  </span>
+                  <span className="flex items-center border-r border-white/15 px-3 text-[14px] font-bold text-white/70">+91</span>
                   <input
                     type="tel"
                     inputMode="numeric"
@@ -139,25 +179,18 @@ function ITServiceLoginPage() {
                 </div>
               </div>
               {err && <p className="text-[12px] text-red-300">{err}</p>}
-              <Btn
-                type="submit"
-                disabled={phone.replace(/\D/g, "").length < 10}
-                className="w-full justify-center !bg-primary !py-3 !text-[14px] !text-primary-foreground"
-              >
-                Continue
-                <ArrowRight className="h-4 w-4" />
+              <Btn type="submit" disabled={phone.replace(/\D/g, "").length < 10} className="w-full justify-center !bg-primary !py-3 !text-[14px] !text-primary-foreground">
+                Continue <ArrowRight className="h-4 w-4" />
               </Btn>
             </form>
           ) : (
             <form onSubmit={verifyPin} className="mt-8 space-y-4">
               <div>
-                <label className="mb-1.5 block text-[12px] font-semibold text-white/80">
-                  6-digit PIN
-                </label>
+                <label className="mb-1.5 block text-[12px] font-semibold text-white/80">6-digit PIN</label>
                 <input
                   type="password"
                   inputMode="numeric"
-                  autoComplete="one-time-code"
+                  autoComplete={mode === "signup" ? "new-password" : "current-password"}
                   required
                   maxLength={6}
                   value={pin}
@@ -166,26 +199,42 @@ function ITServiceLoginPage() {
                   className="w-full rounded-lg border border-white/15 bg-white/10 px-3 py-3 text-center font-mono text-[20px] tracking-[0.35em] outline-none"
                 />
               </div>
+              {mode === "signup" && (
+                <div>
+                  <label className="mb-1.5 block text-[12px] font-semibold text-white/80">Confirm PIN</label>
+                  <input
+                    type="password"
+                    inputMode="numeric"
+                    autoComplete="new-password"
+                    required
+                    maxLength={6}
+                    value={confirmPin}
+                    onChange={(e) => setConfirmPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    placeholder="• • • • • •"
+                    className="w-full rounded-lg border border-white/15 bg-white/10 px-3 py-3 text-center font-mono text-[20px] tracking-[0.35em] outline-none"
+                  />
+                </div>
+              )}
+              {info && <p className="text-[12px] text-sky-200">{info}</p>}
               {err && <p className="text-[12px] text-red-300">{err}</p>}
-              <Btn
-                type="submit"
-                disabled={busy || pin.length < 6}
-                className="w-full justify-center !bg-primary !py-3 !text-[14px] !text-primary-foreground"
-              >
+              <Btn type="submit" disabled={busy || pin.length < 6 || (mode === "signup" && confirmPin.length < 6)} className="w-full justify-center !bg-primary !py-3 !text-[14px] !text-primary-foreground">
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Sign in
+                {mode === "signup" ? "Create account" : "Sign in"}
               </Btn>
-              <button
-                type="button"
-                onClick={() => {
-                  setStep("phone");
-                  setPin("");
-                  setErr(null);
-                }}
-                className="w-full text-[13px] text-white/50 hover:text-white/80"
-              >
-                ← Change number
-              </button>
+              <div className="flex flex-wrap gap-3 text-[13px]">
+                <button type="button" onClick={() => { setStep("phone"); setPin(""); setConfirmPin(""); setErr(null); setInfo(null); }} className="text-white/50 hover:text-white/80">
+                  ← Change number
+                </button>
+                {mode === "signup" ? (
+                  <button type="button" onClick={() => { setMode("signin"); setConfirmPin(""); setInfo(null); }} className="text-white/50 hover:text-white/80">
+                    Already have PIN? Sign in
+                  </button>
+                ) : (
+                  <button type="button" onClick={() => { setMode("signup"); setInfo("Create a new account with this number."); }} className="text-white/50 hover:text-white/80">
+                    New user? Sign up
+                  </button>
+                )}
+              </div>
             </form>
           )}
         </div>

@@ -28,6 +28,7 @@ export const COMPLIANCES: ComplianceMaster[] = [
     dueLogic: "quarterly_fy",
     description: "Quarterly board meeting with documented minutes.",
     evidenceTypes: ["Minutes", "PDF"],
+    entityTypes: ["private_limited"],
   },
   {
     id: "GOV002",
@@ -42,6 +43,7 @@ export const COMPLIANCES: ComplianceMaster[] = [
     dueLogic: "annual_fy_end",
     description: "Annual director KYC filing with ROC.",
     evidenceTypes: ["ROC Acknowledgement", "PDF"],
+    entityTypes: ["private_limited"],
   },
   {
     id: "ROC001",
@@ -56,6 +58,22 @@ export const COMPLIANCES: ComplianceMaster[] = [
     dueLogic: "annual_fy_end",
     description: "Annual return filing with Registrar of Companies.",
     evidenceTypes: ["ROC Acknowledgement", "PDF"],
+    entityTypes: ["private_limited"],
+  },
+  {
+    id: "GOV003",
+    domainId: "GOV",
+    subDomainId: "GOV001",
+    name: "AGM Conducted",
+    applicableLaw: "Companies Act 2013",
+    frequency: "Annual",
+    riskLevel: "High",
+    weight: 100,
+    owner: "CEO",
+    dueLogic: "annual_fy_end",
+    description: "Annual general meeting with documented minutes.",
+    evidenceTypes: ["AGM Minutes", "PDF"],
+    entityTypes: ["private_limited"],
   },
   // TAX
   {
@@ -114,6 +132,34 @@ export const COMPLIANCES: ComplianceMaster[] = [
     description: "Annual corporate income tax return.",
     evidenceTypes: ["Reports", "PDF"],
   },
+  {
+    id: "TAX005",
+    domainId: "TAX",
+    subDomainId: "TAX002",
+    name: "TDS Deposit",
+    applicableLaw: "Income Tax Act",
+    frequency: "Monthly",
+    riskLevel: "Critical",
+    weight: 100,
+    owner: "Finance",
+    dueLogic: "monthly_7th",
+    description: "Monthly TDS deposit with challan.",
+    evidenceTypes: ["Challan", "PDF"],
+  },
+  {
+    id: "TAX006",
+    domainId: "TAX",
+    subDomainId: "TAX001",
+    name: "GST Reconciliation",
+    applicableLaw: "GST Act",
+    frequency: "Monthly",
+    riskLevel: "High",
+    weight: 75,
+    owner: "Finance",
+    dueLogic: "monthly_last_day",
+    description: "Monthly GST books reconciliation.",
+    evidenceTypes: ["Reconciliation Report", "Reports"],
+  },
   // HR
   {
     id: "HR001",
@@ -127,6 +173,20 @@ export const COMPLIANCES: ComplianceMaster[] = [
     owner: "HR",
     dueLogic: "monthly_last_day",
     description: "Monthly payroll processing and disbursement.",
+    evidenceTypes: ["Reports", "PDF"],
+  },
+  {
+    id: "HR004",
+    domainId: "HR",
+    subDomainId: "HR001",
+    name: "Payroll Reconciliation",
+    applicableLaw: "Payment of Wages Act",
+    frequency: "Monthly",
+    riskLevel: "High",
+    weight: 75,
+    owner: "HR",
+    dueLogic: "monthly_last_day",
+    description: "Monthly payroll reconciliation before disbursement.",
     evidenceTypes: ["Reports", "PDF"],
   },
   {
@@ -214,6 +274,22 @@ export const COMPLIANCES: ComplianceMaster[] = [
     dueLogic: "quarterly_fy",
     description: "Quarterly user access rights review.",
     evidenceTypes: ["Access Review Report", "Screenshots"],
+    entityTypes: ["private_limited"],
+  },
+  {
+    id: "SEC004",
+    domainId: "SEC",
+    subDomainId: "SEC002",
+    name: "Security Incident Review",
+    applicableLaw: "ISO 27001",
+    frequency: "Monthly",
+    riskLevel: "Critical",
+    weight: 100,
+    owner: "Security",
+    dueLogic: "monthly_last_day",
+    description: "Monthly review of information security incidents.",
+    evidenceTypes: ["Incident Report", "Reports"],
+    entityTypes: ["private_limited"],
   },
   {
     id: "SEC002",
@@ -228,6 +304,7 @@ export const COMPLIANCES: ComplianceMaster[] = [
     dueLogic: "annual_fy_end",
     description: "Annual information security risk assessment.",
     evidenceTypes: ["Reports", "Audit files"],
+    entityTypes: ["private_limited"],
   },
   {
     id: "SEC003",
@@ -242,6 +319,7 @@ export const COMPLIANCES: ComplianceMaster[] = [
     dueLogic: "quarterly_fy",
     description: "Quarterly IT asset register maintenance.",
     evidenceTypes: ["Reports", "Screenshots"],
+    entityTypes: ["private_limited"],
   },
   {
     id: "SOC001",
@@ -328,6 +406,7 @@ export const COMPLIANCES: ComplianceMaster[] = [
     dueLogic: "annual_sep_30",
     description: "Annual statutory audit of financial statements.",
     evidenceTypes: ["Audit Reports", "PDF"],
+    entityTypes: ["private_limited"],
   },
   {
     id: "FIN002",
@@ -342,6 +421,7 @@ export const COMPLIANCES: ComplianceMaster[] = [
     dueLogic: "annual_oct_30",
     description: "Preparation and filing of annual financial statements.",
     evidenceTypes: ["Reports", "PDF"],
+    entityTypes: ["private_limited"],
   },
   // VEN
   {
@@ -374,52 +454,30 @@ export const COMPLIANCES: ComplianceMaster[] = [
   },
 ];
 
-/** Applicability rules — from Excel Table 4 */
+/** Applicability rules — Excel Table 4 + profile conditions */
 export const RULES: RuleMaster[] = [
+  // Table 4 core rules
   { id: "R001", complianceId: "GST001", field: "gstRegistered", operator: "=", value: true },
   { id: "R002", complianceId: "GST002", field: "gstRegistered", operator: "=", value: true },
-  { id: "R003", complianceId: "TAX003", field: "gstRegistered", operator: "=", value: true },
-  { id: "R004", complianceId: "TAX004", field: "gstRegistered", operator: "=", value: true },
-  { id: "R005", complianceId: "POSH001", field: "womenEmployees", operator: ">", value: 0 },
-  { id: "R006", complianceId: "PF001", field: "employeeCount", operator: ">=", value: 20 },
-  { id: "R007", complianceId: "HR003", field: "employeeCount", operator: ">=", value: 10 },
-  { id: "R008", complianceId: "DPDP001", field: "handlesPersonalData", operator: "=", value: true },
-  { id: "R009", complianceId: "DPDP002", field: "handlesPersonalData", operator: "=", value: true },
-  { id: "R010", complianceId: "DPDP003", field: "handlesPersonalData", operator: "=", value: true },
-  { id: "R011", complianceId: "GOV001", field: "entityType", operator: "=", value: "private_limited", privateLimitedPath: true },
-  { id: "R012", complianceId: "GOV002", field: "entityType", operator: "=", value: "private_limited", privateLimitedPath: true },
-  { id: "R013", complianceId: "ROC001", field: "entityType", operator: "=", value: "private_limited", privateLimitedPath: true },
-  { id: "R014", complianceId: "FIN001", field: "entityType", operator: "=", value: "private_limited", privateLimitedPath: true },
-  { id: "R015", complianceId: "FIN002", field: "entityType", operator: "=", value: "private_limited", privateLimitedPath: true },
-  // Private Limited — taxation (GST still requires registration)
-  { id: "R026", complianceId: "GST001", field: "gstRegistered", operator: "=", value: true, privateLimitedPath: true },
-  { id: "R027", complianceId: "GST002", field: "gstRegistered", operator: "=", value: true, privateLimitedPath: true },
-  { id: "R028", complianceId: "TAX003", field: "gstRegistered", operator: "=", value: true, privateLimitedPath: true },
-  { id: "R029", complianceId: "TAX004", field: "gstRegistered", operator: "=", value: true, privateLimitedPath: true },
-  // Private Limited — HR
-  { id: "R030", complianceId: "HR001", field: "employeeCount", operator: ">", value: 0, privateLimitedPath: true },
-  { id: "R031", complianceId: "PF001", field: "employeeCount", operator: ">=", value: 20, privateLimitedPath: true },
-  { id: "R032", complianceId: "POSH001", field: "womenEmployees", operator: ">", value: 0, privateLimitedPath: true },
-  // Private Limited — ISO 27001 controls
-  { id: "R033", complianceId: "ISO001", field: "entityType", operator: "=", value: "private_limited", privateLimitedPath: true },
-  { id: "R034", complianceId: "SEC002", field: "entityType", operator: "=", value: "private_limited", privateLimitedPath: true },
-  { id: "R035", complianceId: "SEC003", field: "entityType", operator: "=", value: "private_limited", privateLimitedPath: true },
-  // Private Limited — DPDP
-  { id: "R036", complianceId: "DPDP001", field: "handlesPersonalData", operator: "=", value: true, privateLimitedPath: true },
-  { id: "R037", complianceId: "DPDP002", field: "handlesPersonalData", operator: "=", value: true, privateLimitedPath: true },
-  { id: "R038", complianceId: "DPDP003", field: "handlesPersonalData", operator: "=", value: true, privateLimitedPath: true },
-  // IT-sector security controls
-  { id: "R016", complianceId: "ISO001", field: "industry", operator: "it_sector", value: true },
-  { id: "R017", complianceId: "SEC002", field: "industry", operator: "it_sector", value: true },
-  { id: "R018", complianceId: "SEC003", field: "industry", operator: "it_sector", value: true },
-  { id: "R019", complianceId: "SOC001", field: "countries_served", operator: "includes", value: "US" },
-  { id: "R020", complianceId: "GDPR001", field: "countries_served", operator: "includes", value: "EU" },
-  // Always applicable baseline
-  { id: "R021", complianceId: "HR001", field: "employeeCount", operator: ">", value: 0 },
-  { id: "R022", complianceId: "LEG001", field: "employeeCount", operator: ">", value: 0 },
-  { id: "R023", complianceId: "LEG002", field: "employeeCount", operator: ">", value: 0 },
-  { id: "R024", complianceId: "VEN001", field: "employeeCount", operator: ">", value: 0 },
-  { id: "R025", complianceId: "VEN002", field: "employeeCount", operator: ">", value: 0 },
+  { id: "R003", complianceId: "TAX006", field: "gstRegistered", operator: "=", value: true },
+  { id: "R004", complianceId: "POSH001", field: "womenEmployees", operator: ">", value: 0 },
+  { id: "R005", complianceId: "PF001", field: "employeeCount", operator: ">=", value: 20 },
+  { id: "R006", complianceId: "DPDP001", field: "handlesPersonalData", operator: "=", value: true },
+  { id: "R007", complianceId: "DPDP002", field: "handlesPersonalData", operator: "=", value: true },
+  { id: "R008", complianceId: "DPDP003", field: "handlesPersonalData", operator: "=", value: true },
+  // Tax — GST registered companies
+  { id: "R009", complianceId: "TAX003", field: "gstRegistered", operator: "=", value: true },
+  { id: "R010", complianceId: "TAX004", field: "gstRegistered", operator: "=", value: true },
+  { id: "R011", complianceId: "TAX005", field: "gstRegistered", operator: "=", value: true },
+  // HR baseline
+  { id: "R012", complianceId: "HR003", field: "employeeCount", operator: ">=", value: 10 },
+  { id: "R013", complianceId: "HR001", field: "employeeCount", operator: ">", value: 0 },
+  { id: "R014", complianceId: "HR004", field: "employeeCount", operator: ">", value: 0 },
+  // Always applicable baseline (entityTypes checked on master)
+  { id: "R021", complianceId: "LEG001", field: "employeeCount", operator: ">", value: 0 },
+  { id: "R022", complianceId: "LEG002", field: "employeeCount", operator: ">", value: 0 },
+  { id: "R023", complianceId: "VEN001", field: "employeeCount", operator: ">", value: 0 },
+  { id: "R024", complianceId: "VEN002", field: "employeeCount", operator: ">", value: 0 },
 ];
 
 export const getCompliance = (id: string) => COMPLIANCES.find((c) => c.id === id);
