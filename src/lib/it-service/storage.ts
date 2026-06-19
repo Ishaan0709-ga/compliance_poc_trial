@@ -4,7 +4,6 @@ import { runRuleEngine, getApplicableComplianceIds } from "./rule-engine";
 import { computeScores } from "./scoring-engine";
 import { computeRisks } from "./risk-engine";
 import { generateInsights } from "./ai-insights";
-import { generateNotifications } from "./notification-service";
 import {
   buildRecentActivity,
   mergeActivity,
@@ -128,11 +127,7 @@ export function recomputeState(
     domainScores,
     risks
   );
-  const recipient = normalized.mobileNumber || normalized.primaryContact || "";
-  const notifications = generateNotifications(calendar, recipient, previousNotifications, {
-    whatsappEnabled: normalized.whatsappEnabled,
-    notificationEnabled: normalized.notificationEnabled,
-  });
+  const notifications: NotificationRecord[] = [];
   const recentActivity = buildRecentActivity(evidence, scores, previousScores);
 
   const today = new Date();
@@ -380,6 +375,14 @@ function persistRecomputed(
     ...state,
     recentActivity: mergeActivity(current.recentActivity ?? [], state.recentActivity),
   };
+  saveState(merged);
+  return merged;
+}
+
+export function clearNotificationRunDate(): ITServiceState | null {
+  const current = loadState();
+  if (!current) return null;
+  const merged = { ...current, lastNotificationRunDate: undefined };
   saveState(merged);
   return merged;
 }

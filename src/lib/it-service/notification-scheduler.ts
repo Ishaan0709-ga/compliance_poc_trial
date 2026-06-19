@@ -1,6 +1,11 @@
 import { sendWhatsAppBatch } from "./whatsapp.functions";
-import { getDispatchableNotifications, generateNotifications } from "./notification-service";
+import { generateNotifications, getDispatchableNotifications } from "./notification-service";
 import { ymd } from "./date-utils";
+import {
+  demoDueDateTenDaysFromToday,
+  isTenDayReminderWindow,
+  pickDemoCalendarItem,
+} from "./demo-reminder";
 import type {
   DeliveryStatus,
   ITServiceState,
@@ -13,29 +18,11 @@ export type SchedulerResult = {
   sentNotificationIds: string[];
 };
 
-/** Daily scheduler — runs once per calendar day, silent backend dispatch */
-export async function runDailyNotificationScheduler(
-  state: ITServiceState,
+async function dispatchPending(
+  mobileNumber: string,
   userId: string,
-  mobileNumber: string
-): Promise<SchedulerResult | null> {
-  const today = ymd(new Date());
-  if (state.lastNotificationRunDate === today) return null;
-  if (state.profile?.whatsappEnabled === false) return null;
-  if (state.profile?.notificationEnabled === false) return null;
-  if (!mobileNumber || mobileNumber.replace(/\D/g, "").length < 10) return null;
-
-  const notifications = generateNotifications(
-    state.calendar,
-    mobileNumber,
-    state.notifications,
-    {
-      whatsappEnabled: state.profile?.whatsappEnabled,
-      notificationEnabled: state.profile?.notificationEnabled,
-    }
-  );
-
-  const pending = getDispatchableNotifications(notifications);
+  pending: ReturnType<typeof getDispatchableNotifications>
+): Promise<SchedulerResult> {
   if (pending.length === 0) {
     return { dispatched: 0, history: [], sentNotificationIds: [] };
   }
@@ -81,9 +68,84 @@ export async function runDailyNotificationScheduler(
     });
   }
 
-  return {
-    dispatched: sentNotificationIds.length,
-    history,
-    sentNotificationIds,
-  };
+  return { dispatched: sentNotificationIds.length, history, sentNotificationIds };
+}
+
+/** Daily scheduler — silent, backend only */
+export async function runDailyNotificationScheduler(
+  state: ITServiceState,
+  userId: string,
+  mobileNumber: string,
+  force = false
+): Promise<SchedulerResult | null> {
+  const today = ymd(new Date());
+  if (!force && state.lastNotificationRunDate === today) return null;
+  if (state.profile?.whatsappEnabled === false) return null;
+  if (state.profile?.notificationEnabled === false) return null;
+  if (!mobileNumber || mobileNumber.replace(/\D/g, "").length < 10) return null;
+
+  const notifications = generateNotifications(state.calendar, mobileNumber, [], {
+    whatsappEnabled: state.profile?.whatsappEnabled,
+    notificationEnabled: state.profile?.notificationEnabled,
+  });
+
+  return dispatchPending(mobileNumber, userId, getDispatchableNotifications(notifications));
+}
+
+/**
+ * Demo: ensure 10-day window item exists, then send WhatsApp.
+ * Never exposes message body in UI.
+ */
+export async function runWhatsAppDemo(
+  state: ITServiceState,
+  userId: string,
+  mobileNumber: string,
+  calendarAfterDueDateSet: ITServiceState
+): Promise<SchedulerResult & { demoDueDate: string }> {
+  const demoDue = demoDueDateTenDaysFromToday();
+  const target = pickDemoCalendarItem(state);
+
+  let working = calendarAfterDueDateSet;
+
+  const hasWindow = working.calendar.some(
+    (c) => c.status !== "completed" && isTenDayReminderWindow(c.dueDate)
+  );
+
+  if (!hasWindow && target) {
+    working = {
+      ...working,
+      calendar: working.calendar.map((c) =>
+        c.id === target.id
+          ? { ...c, dueDate: demoDue, systemDueDate: c.systemDueDate ?? c.dueDate }
+          : c
+      ),
+    };
+  }
+
+  let notifications = generateNotifications(working.calendar, mobileNumber, [], {
+    whatsappEnabled: true,
+    notificationEnabled: true,
+  });
+
+  let pending = getDispatchableNotifications(notifications);
+
+  if (pending.length === 0 && target) {
+    const item = working.calendar.find(
+      (c) => c.complianceId === target.complianceId && c.status !== "completed"
+    );
+    if (item) {
+      notifications = generateNotifications(
+        working.calendar.map((c) =>
+          c.id === item.id ? { ...c, dueDate: demoDue } : c
+        ),
+        mobileNumber,
+        [],
+        { whatsappEnabled: true, notificationEnabled: true }
+      );
+      pending = getDispatchableNotifications(notifications).slice(0, 1);
+    }
+  }
+
+  const result = await dispatchPending(mobileNumber, userId, pending);
+  return { ...result, demoDueDate: demoDue };
 }

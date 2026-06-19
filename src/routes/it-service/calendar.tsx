@@ -3,10 +3,11 @@ import { useMemo, useState } from "react";
 import { useITService } from "@/lib/it-service/context";
 import { ITServiceShell } from "@/components/it-service/ITServiceShell";
 import { RequireOnboarding } from "@/components/it-service/RequireOnboarding";
-import { PageHeader, Card, Pill, Btn } from "@/components/ui-kit";
+import { PageHeader, Card, Btn } from "@/components/ui-kit";
 import { getCompliance, DOMAINS } from "@/lib/it-service/master-data";
 import { domainBadge } from "@/lib/it-service/domain-labels";
 import type { CalendarItem, CalendarStatus } from "@/lib/it-service/types";
+import { ComplianceCalendarRow } from "@/components/it-service/ComplianceCalendarRow";
 import { ComplianceEvidencePanel } from "@/components/it-service/ComplianceEvidenceActions";
 import {
   STATUS_STYLES,
@@ -310,43 +311,20 @@ function CalendarContent() {
             <p className="py-4 text-[13px] text-ink-3">No calendar items for this period. Save company profile as Private Limited with GST & employees to generate more.</p>
           ) : (
             listItems.sort((a, b) => a.dueDate.localeCompare(b.dueDate)).map((item) => {
-              const comp = getCompliance(item.complianceId)!;
-              const due = parseYmd(item.dueDate);
               const isExpanded = expandedId === item.id;
 
               return (
-                <div key={item.id} className="py-3">
-                  <div className="flex items-center gap-4">
-                    <div className="w-14 shrink-0 overflow-hidden rounded-xl border border-border bg-gradient-to-b from-white to-surface-2 text-center shadow-sm">
-                      <div className={`h-1 ${item.status === "overdue" ? "bg-rose-500" : item.status === "completed" ? "bg-emerald-500" : "bg-sky-500"}`} />
-                      <div className="text-[20px] font-extrabold leading-tight">{due.getDate()}</div>
-                      <div className="pb-1 text-[9px] font-bold uppercase text-ink-4">{due.toLocaleString("en-IN", { month: "short" })}</div>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className={`rounded-md border px-1.5 py-0.5 text-[10px] font-bold ${chipClass(item, comp.frequency)}`}>
-                          {domainBadge(comp.domainId)}
-                        </span>
-                        <span className="text-[13px] font-bold">{comp.name}</span>
-                      </div>
-                      <div className="mt-1 flex flex-wrap gap-2 text-[12px] text-ink-3">
-                        <span>Owner: {item.owner}</span>
-                        <Pill tone={comp.riskLevel === "Critical" ? "miss" : comp.riskLevel === "High" ? "pend" : "n"}>
-                          {comp.riskLevel}
-                        </Pill>
-                      </div>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <Pill tone={item.status === "completed" ? "done" : item.status === "overdue" ? "miss" : "pend"}>
-                        {item.status === "completed" ? "COMPLETED" : item.status === "overdue" ? "OVERDUE" : "PENDING"}
-                      </Pill>
-                      <button type="button" onClick={() => { setExpandedId(isExpanded ? null : item.id); setEditDate(item.dueDate); }} className="mt-1 block text-[11px] font-bold text-primary hover:underline">
-                        {isExpanded ? "Close" : "Details →"}
-                      </button>
-                    </div>
-                  </div>
+                <ComplianceCalendarRow
+                  key={item.id}
+                  item={item}
+                  expanded={isExpanded}
+                  onDetails={() => {
+                    setExpandedId(isExpanded ? null : item.id);
+                    setEditDate(item.dueDate);
+                  }}
+                >
                   {isExpanded && (
-                    <div className="mt-3 rounded-lg border border-border bg-surface-2/40 p-3 pl-4">
+                    <div className="mt-3 rounded-lg border border-border bg-surface-2/40 p-3">
                       <div className="mb-3 flex flex-wrap items-end gap-2">
                         <label className="text-[11px] font-bold text-ink-4">
                           Due date
@@ -359,17 +337,29 @@ function CalendarContent() {
                         </label>
                         <Btn variant="o" onClick={() => saveDueDate(item.id)}>Save date</Btn>
                         {item.systemDueDate && (
-                          <button type="button" className="text-[11px] text-ink-4 underline" onClick={() => { resetDueDate(item.id); setEditDate(item.systemDueDate!); }}>
+                          <button
+                            type="button"
+                            className="text-[11px] text-ink-4 underline"
+                            onClick={() => {
+                              resetDueDate(item.id);
+                              setEditDate(item.systemDueDate!);
+                            }}
+                          >
                             Reset to system date
                           </button>
                         )}
                       </div>
                       {item.status !== "completed" && (
-                        <ComplianceEvidencePanel complianceId={item.complianceId} calendarItemId={item.id} onClose={() => setExpandedId(null)} onComplete={() => setExpandedId(null)} />
+                        <ComplianceEvidencePanel
+                          complianceId={item.complianceId}
+                          calendarItemId={item.id}
+                          onClose={() => setExpandedId(null)}
+                          onComplete={() => setExpandedId(null)}
+                        />
                       )}
                     </div>
                   )}
-                </div>
+                </ComplianceCalendarRow>
               );
             })
           )}
