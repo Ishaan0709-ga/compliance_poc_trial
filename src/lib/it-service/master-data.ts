@@ -1,486 +1,119 @@
-import type { ComplianceMaster, DomainMaster, RuleMaster } from "./types";
+import { COMPLIANCE_SHEET } from "./compliance-sheet";
+import type {
+  ComplianceMaster,
+  DomainId,
+  DomainMaster,
+  EntityType,
+  RiskLevel,
+} from "./types";
 
-/** Domain master — from Excel Table 1 / PPT */
-export const DOMAINS: DomainMaster[] = [
-  { id: "GOV", name: "Corporate Governance", route: "/it-service/governance" },
-  { id: "TAX", name: "Taxation", route: "/it-service/taxation" },
-  { id: "HR", name: "HR Compliance", route: "/it-service/hr" },
-  { id: "LEG", name: "Legal", route: "/it-service/legal" },
-  { id: "SEC", name: "Information Security", route: "/it-service/security" },
-  { id: "DPP", name: "Data Privacy", route: "/it-service/privacy" },
-  { id: "FIN", name: "Financial", route: "/it-service/financial" },
-  { id: "VEN", name: "Vendor", route: "/it-service/vendor" },
-];
+/** Entity → applicable domain ids (extend for OPC, LLP, etc.) */
+export const ENTITY_DOMAIN_MATRIX: Partial<Record<EntityType, DomainId[]>> = {
+  private_limited: ["GOV", "TAX", "HR", "LEG", "SEC"],
+};
 
-/** Compliance master — from Excel Tables 2–3 */
-export const COMPLIANCES: ComplianceMaster[] = [
-  // GOV
-  {
-    id: "GOV001",
-    domainId: "GOV",
-    subDomainId: "GOV001",
-    name: "Board Meeting",
-    applicableLaw: "Companies Act 2013",
-    frequency: "Quarterly",
-    riskLevel: "Critical",
-    weight: 100,
-    owner: "CEO",
-    dueLogic: "quarterly_fy",
-    description: "Quarterly board meeting with documented minutes.",
-    evidenceTypes: ["Minutes", "PDF"],
-    entityTypes: ["private_limited"],
-  },
-  {
-    id: "GOV002",
-    domainId: "GOV",
-    subDomainId: "GOV002",
-    name: "Director KYC",
-    applicableLaw: "MCA",
-    frequency: "Annual",
-    riskLevel: "High",
-    weight: 75,
-    owner: "Compliance",
-    dueLogic: "annual_fy_end",
-    description: "Annual director KYC filing with ROC.",
-    evidenceTypes: ["ROC Acknowledgement", "PDF"],
-    entityTypes: ["private_limited"],
-  },
-  {
-    id: "ROC001",
-    domainId: "GOV",
-    subDomainId: "GOV001",
-    name: "Annual ROC Filing",
-    applicableLaw: "Companies Act 2013",
-    frequency: "Annual",
-    riskLevel: "Critical",
-    weight: 100,
-    owner: "Compliance",
-    dueLogic: "annual_fy_end",
-    description: "Annual return filing with Registrar of Companies.",
-    evidenceTypes: ["ROC Acknowledgement", "PDF"],
-    entityTypes: ["private_limited"],
-  },
-  {
-    id: "GOV003",
-    domainId: "GOV",
-    subDomainId: "GOV001",
-    name: "AGM Conducted",
-    applicableLaw: "Companies Act 2013",
-    frequency: "Annual",
-    riskLevel: "High",
-    weight: 100,
-    owner: "CEO",
-    dueLogic: "annual_fy_end",
-    description: "Annual general meeting with documented minutes.",
-    evidenceTypes: ["AGM Minutes", "PDF"],
-    entityTypes: ["private_limited"],
-  },
-  // TAX
-  {
-    id: "GST001",
-    domainId: "TAX",
-    subDomainId: "TAX001",
-    name: "GSTR-3B Filing",
-    applicableLaw: "GST Act",
-    frequency: "Monthly",
-    riskLevel: "Critical",
-    weight: 100,
-    owner: "Finance",
-    dueLogic: "monthly_11th",
-    description: "Monthly GST summary return filing.",
-    evidenceTypes: ["GST Return PDF", "Reports"],
-  },
-  {
-    id: "GST002",
-    domainId: "TAX",
-    subDomainId: "TAX001",
-    name: "GSTR-1 Filing",
-    applicableLaw: "GST Act",
-    frequency: "Monthly",
-    riskLevel: "Critical",
-    weight: 100,
-    owner: "Finance",
-    dueLogic: "monthly_13th",
-    description: "Monthly outward supplies return.",
-    evidenceTypes: ["GST Return PDF", "Reports"],
-  },
-  {
-    id: "TAX003",
-    domainId: "TAX",
-    subDomainId: "TAX002",
-    name: "TDS Return",
-    applicableLaw: "Income Tax Act",
-    frequency: "Quarterly",
-    riskLevel: "High",
-    weight: 75,
-    owner: "Finance",
-    dueLogic: "quarterly_end_31st",
-    description: "Quarterly TDS statement filing.",
-    evidenceTypes: ["Reports", "PDF"],
-  },
-  {
-    id: "TAX004",
-    domainId: "TAX",
-    subDomainId: "TAX003",
-    name: "Income Tax Return",
-    applicableLaw: "Income Tax Act",
-    frequency: "Annual",
-    riskLevel: "High",
-    weight: 75,
-    owner: "Finance",
-    dueLogic: "annual_oct_31",
-    description: "Annual corporate income tax return.",
-    evidenceTypes: ["Reports", "PDF"],
-  },
-  {
-    id: "TAX005",
-    domainId: "TAX",
-    subDomainId: "TAX002",
-    name: "TDS Deposit",
-    applicableLaw: "Income Tax Act",
-    frequency: "Monthly",
-    riskLevel: "Critical",
-    weight: 100,
-    owner: "Finance",
-    dueLogic: "monthly_7th",
-    description: "Monthly TDS deposit with challan.",
-    evidenceTypes: ["Challan", "PDF"],
-  },
-  {
-    id: "TAX006",
-    domainId: "TAX",
-    subDomainId: "TAX001",
-    name: "GST Reconciliation",
-    applicableLaw: "GST Act",
-    frequency: "Monthly",
-    riskLevel: "High",
-    weight: 75,
-    owner: "Finance",
-    dueLogic: "monthly_last_day",
-    description: "Monthly GST books reconciliation.",
-    evidenceTypes: ["Reconciliation Report", "Reports"],
-  },
-  // HR
-  {
-    id: "HR001",
-    domainId: "HR",
-    subDomainId: "HR001",
-    name: "Payroll Processing",
-    applicableLaw: "Payment of Wages Act",
-    frequency: "Monthly",
-    riskLevel: "High",
-    weight: 75,
-    owner: "HR",
-    dueLogic: "monthly_last_day",
-    description: "Monthly payroll processing and disbursement.",
-    evidenceTypes: ["Reports", "PDF"],
-  },
-  {
-    id: "HR004",
-    domainId: "HR",
-    subDomainId: "HR001",
-    name: "Payroll Reconciliation",
-    applicableLaw: "Payment of Wages Act",
-    frequency: "Monthly",
-    riskLevel: "High",
-    weight: 75,
-    owner: "HR",
-    dueLogic: "monthly_last_day",
-    description: "Monthly payroll reconciliation before disbursement.",
-    evidenceTypes: ["Reports", "PDF"],
-  },
-  {
-    id: "PF001",
-    domainId: "HR",
-    subDomainId: "HR001",
-    name: "PF ECR Filing",
-    applicableLaw: "EPF Act",
-    frequency: "Monthly",
-    riskLevel: "High",
-    weight: 75,
-    owner: "HR",
-    dueLogic: "monthly_15th",
-    description: "Monthly PF electronic challan-cum-return.",
-    evidenceTypes: ["Reports", "PDF"],
-  },
-  {
-    id: "POSH001",
-    domainId: "HR",
-    subDomainId: "HR002",
-    name: "POSH Committee Review",
-    applicableLaw: "POSH Act 2013",
-    frequency: "Annual",
-    riskLevel: "Medium",
-    weight: 50,
-    owner: "HR",
-    dueLogic: "annual_fy_end",
-    description: "Annual POSH committee review and report.",
-    evidenceTypes: ["POSH Committee Minutes", "Policies"],
-  },
-  {
-    id: "HR003",
-    domainId: "HR",
-    subDomainId: "HR001",
-    name: "ESI Contribution",
-    applicableLaw: "ESI Act",
-    frequency: "Monthly",
-    riskLevel: "Medium",
-    weight: 50,
-    owner: "HR",
-    dueLogic: "monthly_15th",
-    description: "Monthly ESI contribution remittance.",
-    evidenceTypes: ["Reports", "PDF"],
-  },
-  // LEG
-  {
-    id: "LEG001",
-    domainId: "LEG",
-    subDomainId: "LEG001",
-    name: "NDA Review",
-    applicableLaw: "Contract Act",
-    frequency: "Event Based",
-    riskLevel: "Medium",
-    weight: 50,
-    owner: "Legal",
-    dueLogic: "event_based",
-    description: "Review and renewal of non-disclosure agreements.",
-    evidenceTypes: ["Policies", "PDF"],
-  },
-  {
-    id: "LEG002",
-    domainId: "LEG",
-    subDomainId: "LEG002",
-    name: "Contract Compliance Review",
-    applicableLaw: "Contract Act",
-    frequency: "Quarterly",
-    riskLevel: "Medium",
-    weight: 50,
-    owner: "Legal",
-    dueLogic: "quarterly_fy",
-    description: "Quarterly review of active client and vendor contracts.",
-    evidenceTypes: ["Policies", "PDF"],
-  },
-  // SEC
-  {
-    id: "ISO001",
-    domainId: "SEC",
-    subDomainId: "SEC001",
-    name: "Access Review",
-    applicableLaw: "ISO 27001",
-    frequency: "Quarterly",
-    riskLevel: "High",
-    weight: 75,
-    owner: "Security",
-    dueLogic: "quarterly_fy",
-    description: "Quarterly user access rights review.",
-    evidenceTypes: ["Access Review Report", "Screenshots"],
-    entityTypes: ["private_limited"],
-  },
-  {
-    id: "SEC004",
-    domainId: "SEC",
-    subDomainId: "SEC002",
-    name: "Security Incident Review",
-    applicableLaw: "ISO 27001",
-    frequency: "Monthly",
-    riskLevel: "Critical",
-    weight: 100,
-    owner: "Security",
-    dueLogic: "monthly_last_day",
-    description: "Monthly review of information security incidents.",
-    evidenceTypes: ["Incident Report", "Reports"],
-    entityTypes: ["private_limited"],
-  },
-  {
-    id: "SEC002",
-    domainId: "SEC",
-    subDomainId: "SEC002",
-    name: "Risk Assessment",
-    applicableLaw: "ISO 27001",
-    frequency: "Annual",
-    riskLevel: "High",
-    weight: 75,
-    owner: "Security",
-    dueLogic: "annual_fy_end",
-    description: "Annual information security risk assessment.",
-    evidenceTypes: ["Reports", "Audit files"],
-    entityTypes: ["private_limited"],
-  },
-  {
-    id: "SEC003",
-    domainId: "SEC",
-    subDomainId: "SEC002",
-    name: "Asset Register Update",
-    applicableLaw: "ISO 27001",
-    frequency: "Quarterly",
-    riskLevel: "Medium",
-    weight: 50,
-    owner: "Security",
-    dueLogic: "quarterly_fy",
-    description: "Quarterly IT asset register maintenance.",
-    evidenceTypes: ["Reports", "Screenshots"],
-    entityTypes: ["private_limited"],
-  },
-  {
-    id: "SOC001",
-    domainId: "SEC",
-    subDomainId: "SEC001",
-    name: "SOC 2 Control Review",
-    applicableLaw: "SOC 2",
-    frequency: "Quarterly",
-    riskLevel: "High",
-    weight: 75,
-    owner: "Security",
-    dueLogic: "quarterly_fy",
-    description: "Quarterly SOC 2 trust service criteria review.",
-    evidenceTypes: ["Audit files", "Reports"],
-  },
-  // DPP
-  {
-    id: "DPDP001",
-    domainId: "DPP",
-    subDomainId: "DPP001",
-    name: "Consent Audit",
-    applicableLaw: "DPDP Act 2023",
-    frequency: "Quarterly",
-    riskLevel: "High",
-    weight: 75,
-    owner: "Compliance",
-    dueLogic: "quarterly_fy",
-    description: "Quarterly audit of data processing consent records.",
-    evidenceTypes: ["Reports", "Audit files"],
-  },
-  {
-    id: "DPDP002",
-    domainId: "DPP",
-    subDomainId: "DPP001",
-    name: "Privacy Notice Review",
-    applicableLaw: "DPDP Act 2023",
-    frequency: "Annual",
-    riskLevel: "Medium",
-    weight: 50,
-    owner: "Compliance",
-    dueLogic: "annual_fy_end",
-    description: "Annual review and update of privacy notice.",
-    evidenceTypes: ["Policies", "PDF"],
-  },
-  {
-    id: "DPDP003",
-    domainId: "DPP",
-    subDomainId: "DPP001",
-    name: "Retention Review",
-    applicableLaw: "DPDP Act 2023",
-    frequency: "Annual",
-    riskLevel: "Medium",
-    weight: 50,
-    owner: "Compliance",
-    dueLogic: "annual_fy_end",
-    description: "Annual data retention policy review.",
-    evidenceTypes: ["Policies", "Reports"],
-  },
-  {
-    id: "GDPR001",
-    domainId: "DPP",
-    subDomainId: "DPP001",
-    name: "GDPR Compliance Review",
-    applicableLaw: "GDPR",
-    frequency: "Annual",
-    riskLevel: "High",
-    weight: 75,
-    owner: "Compliance",
-    dueLogic: "annual_fy_end",
-    description: "Annual GDPR compliance assessment for EU data subjects.",
-    evidenceTypes: ["Audit files", "Reports"],
-  },
-  // FIN
-  {
-    id: "FIN001",
-    domainId: "FIN",
-    subDomainId: "FIN001",
-    name: "Statutory Audit",
-    applicableLaw: "Companies Act 2013",
-    frequency: "Annual",
-    riskLevel: "Critical",
-    weight: 100,
-    owner: "Finance",
-    dueLogic: "annual_sep_30",
-    description: "Annual statutory audit of financial statements.",
-    evidenceTypes: ["Audit Reports", "PDF"],
-    entityTypes: ["private_limited"],
-  },
-  {
-    id: "FIN002",
-    domainId: "FIN",
-    subDomainId: "FIN001",
-    name: "Financial Statements",
-    applicableLaw: "Companies Act 2013",
-    frequency: "Annual",
-    riskLevel: "High",
-    weight: 75,
-    owner: "Finance",
-    dueLogic: "annual_oct_30",
-    description: "Preparation and filing of annual financial statements.",
-    evidenceTypes: ["Reports", "PDF"],
-    entityTypes: ["private_limited"],
-  },
-  // VEN
-  {
-    id: "VEN001",
-    domainId: "VEN",
-    subDomainId: "VEN001",
-    name: "Vendor Review",
-    applicableLaw: "Internal Policy",
-    frequency: "Quarterly",
-    riskLevel: "Medium",
-    weight: 50,
-    owner: "Compliance",
-    dueLogic: "quarterly_fy",
-    description: "Quarterly vendor compliance and performance review.",
-    evidenceTypes: ["Reports", "PDF"],
-  },
-  {
-    id: "VEN002",
-    domainId: "VEN",
-    subDomainId: "VEN001",
-    name: "Third Party Risk Assessment",
-    applicableLaw: "Internal Policy",
-    frequency: "Annual",
-    riskLevel: "High",
-    weight: 75,
-    owner: "Compliance",
-    dueLogic: "annual_fy_end",
-    description: "Annual third-party risk assessment for critical vendors.",
-    evidenceTypes: ["Reports", "Audit files"],
-  },
-];
+const DOMAIN_NAME_TO_ID: Record<string, DomainId> = {
+  "Corporate Governance": "GOV",
+  Taxation: "TAX",
+  "Human Resource Compliance": "HR",
+  "Legal Compliance": "LEG",
+  "Information Security": "SEC",
+};
 
-/** Applicability rules — Excel Table 4 + profile conditions */
-export const RULES: RuleMaster[] = [
-  // Table 4 core rules
-  { id: "R001", complianceId: "GST001", field: "gstRegistered", operator: "=", value: true },
-  { id: "R002", complianceId: "GST002", field: "gstRegistered", operator: "=", value: true },
-  { id: "R003", complianceId: "TAX006", field: "gstRegistered", operator: "=", value: true },
-  { id: "R004", complianceId: "POSH001", field: "womenEmployees", operator: ">", value: 0 },
-  { id: "R005", complianceId: "PF001", field: "employeeCount", operator: ">=", value: 20 },
-  { id: "R006", complianceId: "DPDP001", field: "handlesPersonalData", operator: "=", value: true },
-  { id: "R007", complianceId: "DPDP002", field: "handlesPersonalData", operator: "=", value: true },
-  { id: "R008", complianceId: "DPDP003", field: "handlesPersonalData", operator: "=", value: true },
-  // Tax — GST registered companies
-  { id: "R009", complianceId: "TAX003", field: "gstRegistered", operator: "=", value: true },
-  { id: "R010", complianceId: "TAX004", field: "gstRegistered", operator: "=", value: true },
-  { id: "R011", complianceId: "TAX005", field: "gstRegistered", operator: "=", value: true },
-  // HR baseline
-  { id: "R012", complianceId: "HR003", field: "employeeCount", operator: ">=", value: 10 },
-  { id: "R013", complianceId: "HR001", field: "employeeCount", operator: ">", value: 0 },
-  { id: "R014", complianceId: "HR004", field: "employeeCount", operator: ">", value: 0 },
-  // Always applicable baseline (entityTypes checked on master)
-  { id: "R021", complianceId: "LEG001", field: "employeeCount", operator: ">", value: 0 },
-  { id: "R022", complianceId: "LEG002", field: "employeeCount", operator: ">", value: 0 },
-  { id: "R023", complianceId: "VEN001", field: "employeeCount", operator: ">", value: 0 },
-  { id: "R024", complianceId: "VEN002", field: "employeeCount", operator: ">", value: 0 },
-];
+const DOMAIN_ROUTES: Record<DomainId, string> = {
+  GOV: "/it-service/governance",
+  TAX: "/it-service/taxation",
+  HR: "/it-service/hr",
+  LEG: "/it-service/legal",
+  SEC: "/it-service/security",
+  DPP: "/it-service/privacy",
+  FIN: "/it-service/financial",
+  VEN: "/it-service/vendor",
+};
 
-export const getCompliance = (id: string) => COMPLIANCES.find((c) => c.id === id);
-export const getDomain = (id: string) => DOMAINS.find((d) => d.id === id);
-export const getRulesForCompliance = (complianceId: string) =>
-  RULES.filter((r) => r.complianceId === complianceId);
+const OWNER_BY_DOMAIN: Record<DomainId, string> = {
+  GOV: "Compliance",
+  TAX: "Finance",
+  HR: "HR",
+  LEG: "Legal",
+  SEC: "Security",
+  DPP: "Compliance",
+  FIN: "Finance",
+  VEN: "Compliance",
+};
+
+function riskFromWeightage(weightage: number): RiskLevel {
+  if (weightage >= 100) return "Critical";
+  if (weightage >= 75) return "High";
+  return "Medium";
+}
+
+function buildAllCompliances(): ComplianceMaster[] {
+  const counters: Partial<Record<DomainId, number>> = {};
+
+  return COMPLIANCE_SHEET.map((row) => {
+  const domainId = DOMAIN_NAME_TO_ID[row.domain];
+  if (!domainId) {
+    throw new Error(`Unknown domain in master sheet: ${row.domain}`);
+  }
+
+  counters[domainId] = (counters[domainId] ?? 0) + 1;
+  const id = `${domainId}${String(counters[domainId]).padStart(3, "0")}`;
+
+  return {
+    id,
+    index: row.index,
+    domainId,
+    domain: row.domain,
+    description: row.description,
+    complianceCategory: row.complianceCategory,
+    name: row.compliance,
+    frequency: row.frequency,
+    weight: row.weightage,
+    evidence: row.evidence,
+    riskLevel: riskFromWeightage(row.weightage),
+    owner: OWNER_BY_DOMAIN[domainId],
+    dueLogic: row.dueLogic,
+    entityTypes: row.entityTypes,
+    evidenceTypes: [row.evidence],
+  };
+  });
+}
+
+/** Built from master sheet — do not edit manually */
+export const COMPLIANCES: ComplianceMaster[] = buildAllCompliances();
+
+/** Domains derived from sheet rows (order preserved) */
+export const DOMAINS: DomainMaster[] = Array.from(
+  new Map(
+    COMPLIANCE_SHEET.map((row) => {
+      const id = DOMAIN_NAME_TO_ID[row.domain];
+      return [id, { id, name: row.domain, route: DOMAIN_ROUTES[id] }] as const;
+    })
+  ).values()
+);
+
+export function getDomainsForEntity(entityType: EntityType): DomainId[] {
+  return ENTITY_DOMAIN_MATRIX[entityType] ?? [];
+}
+
+export function getCompliance(id: string) {
+  return COMPLIANCES.find((c) => c.id === id);
+}
+
+export function getDomain(id: string) {
+  return DOMAINS.find((d) => d.id === id);
+}
+
+export function getCompliancesByDomain(domainId: DomainId) {
+  return COMPLIANCES.filter((c) => c.domainId === domainId);
+}
+
+export function getCompliancesForEntity(entityType: EntityType) {
+  const domains = new Set(getDomainsForEntity(entityType));
+  return COMPLIANCES.filter(
+    (c) =>
+      domains.has(c.domainId) &&
+      (!c.entityTypes?.length || c.entityTypes.includes(entityType))
+  );
+}

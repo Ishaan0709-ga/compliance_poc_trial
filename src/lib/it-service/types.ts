@@ -30,18 +30,26 @@ export interface DomainMaster {
 
 export interface ComplianceMaster {
   id: string;
+  /** Row index in master sheet (1–62) */
+  index: number;
   domainId: DomainId;
-  subDomainId: string;
+  /** Excel Domain column */
+  domain: string;
+  /** Excel Description column */
+  description: string;
+  /** Excel Compliance Category column */
+  complianceCategory: string;
+  /** Excel Compliance column */
   name: string;
-  applicableLaw?: string;
   frequency: Frequency;
-  riskLevel: RiskLevel;
+  /** Excel Weightage column */
   weight: number;
+  /** Excel Evidence column */
+  evidence: string;
+  riskLevel: RiskLevel;
   owner: string;
   dueLogic: string;
-  description: string;
   evidenceTypes: string[];
-  /** Excel Applicable_For — empty = all entity types */
   entityTypes?: EntityType[];
 }
 
@@ -56,18 +64,6 @@ export interface CalendarItem {
   status: CalendarStatus;
   owner: string;
   riskLevel: RiskLevel;
-}
-
-export type RuleOperator = "=" | ">" | ">=" | "includes" | "it_sector";
-
-export interface RuleMaster {
-  id: string;
-  complianceId: string;
-  field: keyof CompanyProfile | "countries_served";
-  operator: RuleOperator;
-  value: string | number | boolean;
-  /** When set, these rules apply only for Private Limited entities (alternate path). */
-  privateLimitedPath?: boolean;
 }
 
 export interface CompanyProfile {
@@ -93,17 +89,6 @@ export interface ApplicableCompliance {
   complianceId: string;
   applicable: boolean;
   generatedAt: string;
-}
-
-export interface CalendarItem {
-  id: string;
-  companyId: string;
-  complianceId: string;
-  dueDate: string;
-  period: string;
-  status: CalendarStatus;
-  owner: string;
-  riskLevel: RiskLevel;
 }
 
 export interface EvidenceRecord {

@@ -92,13 +92,16 @@ export function DomainPage({ domainId }: { domainId: DomainId }) {
                           {compScore}%
                         </span>
                       </div>
-                      <div className="mt-0.5 text-[12px] text-ink-3">{comp.description}</div>
+                      <div className="mt-0.5 text-[12px] text-ink-3">
+                        {comp.complianceCategory} · {comp.description}
+                      </div>
                       <div className="mt-1 flex flex-wrap gap-1.5">
                         <Pill tone="n">{comp.frequency}</Pill>
                         <Pill tone={comp.riskLevel === "Critical" ? "miss" : "pend"}>
                           {comp.riskLevel}
                         </Pill>
                         <Pill tone="n">Weight {comp.weight}</Pill>
+                        <Pill tone="n">Evidence: {comp.evidence}</Pill>
                       </div>
                     </div>
                     <div className="shrink-0 text-right">
