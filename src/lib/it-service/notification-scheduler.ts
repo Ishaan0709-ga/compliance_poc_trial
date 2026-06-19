@@ -1,5 +1,5 @@
-import { sendWhatsAppBatch } from "./whatsapp.functions";
 import { generateNotifications, getDispatchableNotifications } from "./notification-service";
+import type { WhatsAppBatchSender } from "./use-whatsapp-actions";
 import { ymd } from "./date-utils";
 import {
   demoDueDateTenDaysFromToday,
@@ -16,9 +16,11 @@ export type SchedulerResult = {
   dispatched: number;
   history: NotificationHistoryRecord[];
   sentNotificationIds: string[];
+  error?: string;
 };
 
 async function dispatchPending(
+  sendBatch: WhatsAppBatchSender,
   mobileNumber: string,
   userId: string,
   pending: ReturnType<typeof getDispatchableNotifications>
@@ -27,7 +29,7 @@ async function dispatchPending(
     return { dispatched: 0, history: [], sentNotificationIds: [] };
   }
 
-  const result = await sendWhatsAppBatch({
+  const result = await sendBatch({
     data: {
       recipient: mobileNumber,
       messages: pending.slice(0, 8).map((n) => ({
@@ -42,10 +44,13 @@ async function dispatchPending(
   const history: NotificationHistoryRecord[] = [];
   const sentNotificationIds: string[] = [];
   const sentAt = new Date().toISOString();
+  let error: string | undefined;
 
   for (const r of result.results) {
     const item = pending.find((p) => p.notificationId === r.notificationId);
     if (!item) continue;
+
+    if (!r.result.ok && r.result.error) error = r.result.error;
 
     const deliveryStatus: DeliveryStatus = r.result.ok
       ? r.result.demo
@@ -53,7 +58,7 @@ async function dispatchPending(
         : "delivered"
       : "failed";
 
-    if (r.result.ok) sentNotificationIds.push(r.notificationId);
+    if (r.result.ok && !r.result.demo) sentNotificationIds.push(r.notificationId);
 
     history.push({
       notificationId: item.notificationId,
@@ -68,11 +73,12 @@ async function dispatchPending(
     });
   }
 
-  return { dispatched: sentNotificationIds.length, history, sentNotificationIds };
+  return { dispatched: sentNotificationIds.length, history, sentNotificationIds, error };
 }
 
 /** Daily scheduler — silent, backend only */
 export async function runDailyNotificationScheduler(
+  sendBatch: WhatsAppBatchSender,
   state: ITServiceState,
   userId: string,
   mobileNumber: string,
@@ -89,7 +95,12 @@ export async function runDailyNotificationScheduler(
     notificationEnabled: state.profile?.notificationEnabled,
   });
 
-  return dispatchPending(mobileNumber, userId, getDispatchableNotifications(notifications));
+  return dispatchPending(
+    sendBatch,
+    mobileNumber,
+    userId,
+    getDispatchableNotifications(notifications)
+  );
 }
 
 /**
@@ -97,6 +108,7 @@ export async function runDailyNotificationScheduler(
  * Never exposes message body in UI.
  */
 export async function runWhatsAppDemo(
+  sendBatch: WhatsAppBatchSender,
   state: ITServiceState,
   userId: string,
   mobileNumber: string,
@@ -146,6 +158,6 @@ export async function runWhatsAppDemo(
     }
   }
 
-  const result = await dispatchPending(mobileNumber, userId, pending);
+  const result = await dispatchPending(sendBatch, mobileNumber, userId, pending);
   return { ...result, demoDueDate: demoDue };
 }

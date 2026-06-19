@@ -19,8 +19,9 @@ import {
   updateCalendarDueDate,
   clearCalendarDueDateOverride,
 } from "./storage";
-import { getUserMobileNumber, setITServiceUserId } from "./auth";
+import { resolveUserMobile, setITServiceUserId } from "./auth";
 import { runDailyNotificationScheduler } from "./notification-scheduler";
+import { useWhatsAppActions } from "./use-whatsapp-actions";
 import { ymd } from "./date-utils";
 import { supabase } from "@/integrations/supabase/client";
 import type { CompanyProfile, EvidenceRecord, ITServiceState } from "./types";
@@ -51,12 +52,13 @@ export function ITServiceProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<ITServiceState>(getDefaultState);
   const [user, setUser] = useState<User | null>(null);
   const schedulerRan = useRef(false);
+  const { sendBatch } = useWhatsAppActions();
 
   const refresh = useCallback(() => {
     setState(loadState() || getDefaultState());
   }, []);
 
-  const userMobile = user ? getUserMobileNumber(user) : null;
+  const userMobile = resolveUserMobile(user, state.profile?.mobileNumber);
 
   useEffect(() => {
     let mounted = true;
@@ -95,7 +97,7 @@ export function ITServiceProvider({ children }: { children: ReactNode }) {
     schedulerRan.current = true;
     const today = ymd(new Date());
 
-    runDailyNotificationScheduler(state, user.id, userMobile).then((result) => {
+    runDailyNotificationScheduler(sendBatch, state, user.id, userMobile).then((result) => {
       if (result === null) return;
       const next = applySchedulerResult(
         loadState() ?? state,
@@ -105,7 +107,7 @@ export function ITServiceProvider({ children }: { children: ReactNode }) {
       );
       setState(next);
     });
-  }, [user?.id, userMobile, state.profile?.onboardingComplete, state.profile?.whatsappEnabled]);
+  }, [user?.id, userMobile, state.profile?.onboardingComplete, state.profile?.whatsappEnabled, sendBatch, state]);
 
   const setProfile = useCallback((profile: CompanyProfile) => {
     const next = saveProfile(profile);

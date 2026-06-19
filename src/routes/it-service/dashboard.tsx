@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { useITService } from "@/lib/it-service/context";
 import { ITServiceShell } from "@/components/it-service/ITServiceShell";
 import { RequireOnboarding } from "@/components/it-service/RequireOnboarding";
@@ -11,6 +12,7 @@ import { domainBadge } from "@/lib/it-service/domain-labels";
 import { parseYmd } from "@/lib/it-service/date-utils";
 import { appendNotificationHistory } from "@/lib/it-service/storage";
 import { sendExecutiveSummaryWhatsApp } from "@/lib/it-service/whatsapp.functions";
+import { formatPhoneDisplay } from "@/lib/it-service/auth";
 import { DOMAINS, getCompliance } from "@/lib/it-service/master-data";
 import { scoreTone } from "@/lib/it-service/scoring-engine";
 import { hasApprovedEvidence } from "@/lib/it-service/compliance-utils";
@@ -34,18 +36,23 @@ function DashboardPage() {
 
 function DashboardContent() {
   const { state, user, userMobile } = useITService();
+  const sendSummaryFn = useServerFn(sendExecutiveSummaryWhatsApp);
   const { profile, kpis, domainScores, risks, insights, recentActivity } = state;
   const upcoming = getUpcomingCalendar(state.calendar, 5);
   const summary = useMemo(() => buildExecutiveSummary(state), [state]);
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [sendingSummary, setSendingSummary] = useState(false);
-  const [summarySent, setSummarySent] = useState(false);
+  const [summaryStatus, setSummaryStatus] = useState<string | null>(null);
 
   const handleSendSummary = async () => {
-    if (!userMobile || !user?.id) return;
+    if (!userMobile || !user?.id) {
+      setSummaryStatus("Sign in with your mobile number to receive WhatsApp messages.");
+      return;
+    }
     setSendingSummary(true);
+    setSummaryStatus(null);
     try {
-      const result = await sendExecutiveSummaryWhatsApp({
+      const result = await sendSummaryFn({
         data: { recipient: userMobile, message: summary.whatsappText },
       });
       appendNotificationHistory({
@@ -56,11 +63,19 @@ function DashboardContent() {
         messageType: "executive_summary",
         messageBody: summary.whatsappText,
         sentAt: new Date().toISOString(),
-        deliveryStatus: result.ok ? (result.demo ? "queued" : "delivered") : "failed",
+        deliveryStatus: result.ok && !result.demo ? "delivered" : "failed",
         twilioMessageSid: result.sid ?? null,
       });
-      setSummarySent(true);
-      setTimeout(() => setSummarySent(false), 4000);
+      if (result.ok && !result.demo) {
+        setSummaryStatus(`Summary sent to ${formatPhoneDisplay(userMobile)} on WhatsApp.`);
+      } else {
+        setSummaryStatus(
+          result.error ??
+            "Could not send. Check Twilio sandbox join, .env vars, and restart the dev server."
+        );
+      }
+    } catch (e) {
+      setSummaryStatus(e instanceof Error ? e.message : "WhatsApp send failed");
     } finally {
       setSendingSummary(false);
     }
@@ -126,6 +141,22 @@ function DashboardContent() {
         }
         actions={
           <>
+            <Btn
+              variant="o"
+              onClick={handleSendSummary}
+              disabled={sendingSummary}
+            >
+              {sendingSummary ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Send className="h-3.5 w-3.5" />
+              )}
+              Send Compliance Summary
+            </Btn>
+            <Btn variant="o" onClick={() => setSummaryOpen(true)}>
+              <ClipboardList className="h-3.5 w-3.5" />
+              View Executive Summary
+            </Btn>
             <Link to="/it-service/reports">
               <Btn variant="o">
                 <FileText className="h-3.5 w-3.5" /> Generate report
@@ -149,6 +180,22 @@ function DashboardContent() {
         />
       )}
 
+      {summaryStatus && (
+        <Banner
+          tone={summaryStatus.includes("sent to") ? "info" : "warn"}
+          icon={<Send className="h-4 w-4" />}
+          text={summaryStatus}
+        />
+      )}
+
+      {!userMobile && (
+        <Banner
+          tone="warn"
+          icon={<AlertTriangle className="h-4 w-4" />}
+          text="WhatsApp needs your mobile number. Sign in with phone + PIN, or add mobile in Profile."
+        />
+      )}
+
       <div className="mb-4 grid gap-3 md:grid-cols-4">
         <Kpi
           value={`${kpis.overallScore}%`}
@@ -162,26 +209,6 @@ function DashboardContent() {
           label="Critical risks"
           tone={kpis.criticalRisks > 0 ? "dn" : "up"}
         />
-      </div>
-
-      <div className="mb-4 flex flex-wrap gap-2">
-        <Btn variant="o" onClick={handleSendSummary} disabled={sendingSummary || !userMobile}>
-          {sendingSummary ? (
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-          ) : (
-            <Send className="h-3.5 w-3.5" />
-          )}
-          Send Compliance Summary
-        </Btn>
-        <Btn variant="o" onClick={() => setSummaryOpen(true)}>
-          <ClipboardList className="h-3.5 w-3.5" />
-          View Executive Summary
-        </Btn>
-        {summarySent && (
-          <span className="self-center text-[12px] font-medium text-success">
-            Summary sent to your WhatsApp
-          </span>
-        )}
       </div>
 
       <ExecutiveSummaryModal

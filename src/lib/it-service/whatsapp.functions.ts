@@ -21,9 +21,10 @@ async function sendViaTwilio(to: string, message: string): Promise<WhatsAppSendR
 
   if (!accountSid || !authToken || !from) {
     return {
-      ok: true,
+      ok: false,
       demo: true,
-      error: "Twilio env vars not configured — TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM",
+      error:
+        "Twilio not configured on server. Add TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM to .env and restart the dev server.",
     };
   }
 

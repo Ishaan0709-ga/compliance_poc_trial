@@ -14,7 +14,8 @@ import {
 } from "@/lib/it-service/storage";
 import { demoDueDateTenDaysFromToday, pickDemoCalendarItem } from "@/lib/it-service/demo-reminder";
 import { runWhatsAppDemo } from "@/lib/it-service/notification-scheduler";
-import { formatPhoneDisplay, getUserMobileNumber, signOutITService } from "@/lib/it-service/auth";
+import { useWhatsAppActions } from "@/lib/it-service/use-whatsapp-actions";
+import { formatPhoneDisplay, signOutITService } from "@/lib/it-service/auth";
 import { getEntityTypeLabel, getIndustryLabel, DEFAULT_COUNTRY } from "@/lib/it-service/profile-options";
 import { getCompliance } from "@/lib/it-service/master-data";
 import { ymd } from "@/lib/it-service/date-utils";
@@ -33,6 +34,7 @@ function SettingsPage() {
 
 function SettingsContent() {
   const { state, refresh, user, userMobile } = useITService();
+  const { sendBatch } = useWhatsAppActions();
   const navigate = useNavigate();
   const p = state.profile;
   const [waBusy, setWaBusy] = useState(false);
@@ -70,7 +72,7 @@ function SettingsContent() {
         ? getCompliance(target.complianceId)?.name ?? "Compliance item"
         : "Compliance item";
 
-      const result = await runWhatsAppDemo(state, user.id, userMobile, fresh);
+      const result = await runWhatsAppDemo(sendBatch, state, user.id, userMobile, fresh);
       applySchedulerResult(
         loadState() ?? fresh,
         result.sentNotificationIds,
@@ -83,9 +85,11 @@ function SettingsContent() {
         setWaStatus(
           `Reminder sent to ${formatPhoneDisplay(userMobile)} · ${compName} due ${demoDue} (10-day window). Check WhatsApp.`
         );
+      } else if (result.error) {
+        setWaStatus(result.error);
       } else {
         setWaStatus(
-          "Could not send — verify Twilio sandbox join & .env vars, then try again."
+          "No reminder in 10-day window. Try again, or join Twilio sandbox: send join <keyword> to +1 415 523 8886 on WhatsApp."
         );
       }
     } catch (e) {

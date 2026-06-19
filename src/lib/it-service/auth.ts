@@ -177,6 +177,23 @@ export function getUserMobileNumber(user: {
   if (!display) return null;
   return normalizeIndianPhone(display);
 }
+
+/** Auth mobile first, then saved company profile mobile. */
+export function resolveUserMobile(
+  user: {
+    phone?: string | null;
+    email?: string | null;
+    user_metadata?: Record<string, unknown>;
+  } | null,
+  profileMobile?: string | null
+): string | null {
+  const fromAuth = getUserMobileNumber(user);
+  if (fromAuth) return fromAuth;
+  if (profileMobile?.replace(/\D/g, "").length) {
+    return normalizeIndianPhone(profileMobile);
+  }
+  return null;
+}
 export async function getCurrentUser() {
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) return null;
