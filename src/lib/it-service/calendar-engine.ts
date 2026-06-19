@@ -1,16 +1,13 @@
 import { getCompliance } from "./master-data";
+import { ymd } from "./date-utils";
 import type { CalendarItem, CompanyProfile } from "./types";
-
-function ymd(d: Date) {
-  return d.toISOString().slice(0, 10);
-}
 
 function monthLabel(d: Date) {
   return d.toLocaleString("en-IN", { month: "short", year: "numeric" });
 }
 
 function fyEndYear(profile: CompanyProfile, ref: Date): number {
-  const fyStart = profile.financialYearStart - 1; // 0-indexed month
+  const fyStart = profile.financialYearStart - 1;
   return ref.getMonth() >= fyStart ? ref.getFullYear() + 1 : ref.getFullYear();
 }
 
@@ -29,57 +26,55 @@ function quarterMonths(fyStart: number): number[][] {
   ];
 }
 
+/** Due date within the period month (ref), not pushed to next month */
 function dueFromLogic(
   profile: CompanyProfile,
   dueLogic: string,
   ref: Date
 ): Date | null {
-  const next = new Date(ref.getFullYear(), ref.getMonth() + 1, 1);
+  const year = ref.getFullYear();
+  const month = ref.getMonth();
 
   switch (dueLogic) {
     case "monthly_11th":
-      return new Date(next.getFullYear(), next.getMonth(), 11);
+      return new Date(year, month, 11);
     case "monthly_7th":
-      return new Date(next.getFullYear(), next.getMonth(), 7);
+      return new Date(year, month, 7);
     case "monthly_13th":
-      return new Date(next.getFullYear(), next.getMonth(), 13);
+      return new Date(year, month, 13);
     case "monthly_15th":
-      return new Date(next.getFullYear(), next.getMonth(), 15);
+      return new Date(year, month, 15);
     case "monthly_last_day":
-      return new Date(next.getFullYear(), next.getMonth(), 0);
+      return new Date(year, month + 1, 0);
     case "quarterly_fy": {
       const qs = quarterMonths(profile.financialYearStart);
-      const m = ref.getMonth();
-      const qIdx = qs.findIndex((q) => q.includes(m));
+      const qIdx = qs.findIndex((q) => q.includes(month));
       const endMonth = qs[qIdx >= 0 ? qIdx : 0][2];
-      const year = m > endMonth ? ref.getFullYear() + 1 : ref.getFullYear();
-      return new Date(year, endMonth, 28);
+      const endYear = month > endMonth ? year + 1 : year;
+      return new Date(endYear, endMonth, 28);
     }
     case "quarterly_end_31st": {
-      const qEnd = new Date(ref.getFullYear(), ref.getMonth() + 3, 0);
-      return new Date(qEnd.getFullYear(), qEnd.getMonth() + 1, 31);
+      const qEnd = new Date(year, month + 3, 0);
+      return new Date(qEnd.getFullYear(), qEnd.getMonth(), Math.min(31, qEnd.getDate()));
     }
     case "annual_fy_end": {
       const fyEndMonth = (profile.financialYearStart + 11) % 12;
-      const year = fyEndYear(profile, ref);
-      return new Date(year, fyEndMonth, 30);
+      const endYear = fyEndYear(profile, ref);
+      return new Date(endYear, fyEndMonth, 30);
     }
     case "annual_sep_30": {
-      const year = fyEndYear(profile, ref);
-      return new Date(year, 8, 30);
+      return new Date(fyEndYear(profile, ref), 8, 30);
     }
     case "annual_oct_30": {
-      const year = fyEndYear(profile, ref);
-      return new Date(year, 9, 30);
+      return new Date(fyEndYear(profile, ref), 9, 30);
     }
     case "annual_oct_31": {
-      const year = fyEndYear(profile, ref);
-      return new Date(year, 9, 31);
+      return new Date(fyEndYear(profile, ref), 9, 31);
     }
     case "event_based":
       return null;
     default:
-      return new Date(next.getFullYear(), next.getMonth(), 15);
+      return new Date(year, month, 15);
   }
 }
 
@@ -93,20 +88,22 @@ export function generateCalendar(
 ): CalendarItem[] {
   const items: CalendarItem[] = [];
   const today = ymd(from);
+  const startMonth = new Date(from.getFullYear(), from.getMonth(), 1);
 
   for (const cid of complianceIds) {
     const c = getCompliance(cid);
     if (!c) continue;
 
     if (c.frequency === "Event Based") {
-      const due = new Date(from.getFullYear(), from.getMonth() + 2, 15);
+      const due = new Date(from);
+      due.setDate(due.getDate() + 14);
       items.push({
         id: `${cid}-event-${ymd(due)}`,
         companyId: profile.companyId,
         complianceId: cid,
         dueDate: ymd(due),
         period: "On demand",
-        status: due < from ? "overdue" : "pending",
+        status: ymd(due) < today ? "overdue" : "pending",
         owner: c.owner,
         riskLevel: c.riskLevel,
       });
@@ -114,16 +111,18 @@ export function generateCalendar(
     }
 
     for (let i = 0; i < months; i++) {
-      const m = new Date(from.getFullYear(), from.getMonth() + i, 1);
+      const m = new Date(startMonth.getFullYear(), startMonth.getMonth() + i, 1);
       let shouldAdd = false;
 
       switch (c.frequency) {
         case "Monthly":
           shouldAdd = true;
           break;
-        case "Quarterly":
-          shouldAdd = m.getMonth() % 3 === (profile.financialYearStart - 1) % 3;
+        case "Quarterly": {
+          const qs = quarterMonths(profile.financialYearStart);
+          shouldAdd = qs.some((q) => q[2] === m.getMonth());
           break;
+        }
         case "Half-Yearly":
           shouldAdd = m.getMonth() % 6 === (profile.financialYearStart - 1) % 6;
           break;
@@ -173,7 +172,6 @@ export function getUpcomingCalendar(
   limit = 8,
   from: Date = new Date()
 ): CalendarItem[] {
-  const today = ymd(from);
   return calendar
     .filter((c) => c.status !== "completed")
     .sort((a, b) => a.dueDate.localeCompare(b.dueDate))

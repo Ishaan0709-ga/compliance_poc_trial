@@ -25,6 +25,7 @@ import type {
   DashboardKpis,
   EvidenceRecord,
   ITServiceState,
+  NotificationRecord,
 } from "./types";
 
 const LEGACY_STORAGE_KEY = "complyos-it-service";
@@ -96,7 +97,8 @@ export function recomputeState(
   profile: CompanyProfile,
   evidence: EvidenceRecord[] = [],
   previousScores: ComplianceScore[] = [],
-  dueDateOverrides: Record<string, string> = {}
+  dueDateOverrides: Record<string, string> = {},
+  previousNotifications: NotificationRecord[] = []
 ): ITServiceState {
   const normalized = normalizeProfile(profile);
   const applicable = runRuleEngine(normalized);
@@ -117,7 +119,7 @@ export function recomputeState(
     domainScores,
     risks
   );
-  const notifications = generateNotifications(normalized, calendar);
+  const notifications = generateNotifications(normalized, calendar, previousNotifications);
   const recentActivity = buildRecentActivity(evidence, scores, previousScores);
 
   const today = new Date();
@@ -180,7 +182,13 @@ export function loadState(): ITServiceState | null {
     if (!parsed.profile) return null;
     const previousScores = parsed.scores ?? [];
     const overrides = parsed.dueDateOverrides ?? {};
-    const state = recomputeState(parsed.profile, parsed.evidence || [], previousScores, overrides);
+    const state = recomputeState(
+      parsed.profile,
+      parsed.evidence || [],
+      previousScores,
+      overrides,
+      parsed.notifications ?? []
+    );
     return {
       ...state,
       recentActivity: mergeActivity(parsed.recentActivity ?? [], state.recentActivity),
@@ -208,7 +216,7 @@ export function saveProfile(profile: CompanyProfile): ITServiceState {
   const evidence = existing?.evidence || [];
   const previousScores = pickPreviousScores(existing);
   const overrides = existing?.dueDateOverrides ?? {};
-  const state = recomputeState(profile, evidence, previousScores, overrides);
+  const state = recomputeState(profile, evidence, previousScores, overrides, existing?.notifications ?? []);
   const merged = {
     ...state,
     recentActivity: mergeActivity(existing?.recentActivity ?? [], state.recentActivity),
@@ -246,7 +254,7 @@ export function addEvidence(
     validationStatus: record.validationStatus || "approved",
     source: record.source ?? "upload",
   };
-  const state = recomputeState(current.profile, [...withoutDuplicate, evidence], current.scores, current.dueDateOverrides ?? {});
+  const state = recomputeState(current.profile, [...withoutDuplicate, evidence], current.scores, current.dueDateOverrides ?? {}, current.notifications ?? []);
   const merged = {
     ...state,
     recentActivity: mergeActivity(current.recentActivity ?? [], state.recentActivity),
@@ -287,7 +295,7 @@ export function markEvidenceComplete(record: {
     source: "attestation",
   };
 
-  const state = recomputeState(current.profile, [...withoutFocal, evidence], current.scores, current.dueDateOverrides ?? {});
+  const state = recomputeState(current.profile, [...withoutFocal, evidence], current.scores, current.dueDateOverrides ?? {}, current.notifications ?? []);
   const merged = {
     ...state,
     recentActivity: mergeActivity(current.recentActivity ?? [], state.recentActivity),
@@ -322,7 +330,8 @@ function persistRecomputed(
     current.profile!,
     current.evidence,
     current.scores,
-    overrides
+    overrides,
+    current.notifications ?? []
   );
   const merged = {
     ...state,

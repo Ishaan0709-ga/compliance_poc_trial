@@ -1,4 +1,5 @@
 import type { CalendarItem, CalendarStatus } from "./types";
+import { ymd } from "./date-utils";
 
 export const STATUS_STYLES: Record<
   CalendarStatus | "event",
@@ -46,7 +47,7 @@ export function buildMonthGrid(year: number, month: number, items: CalendarItem[
   for (let i = 0; i < startPad; i++) cells.push({ date: null, items: [] });
   for (let d = 1; d <= daysInMonth; d++) {
     const date = new Date(year, month, d);
-    const key = date.toISOString().slice(0, 10);
+    const key = ymd(date);
     cells.push({ date, items: items.filter((i) => i.dueDate === key) });
   }
   return cells;

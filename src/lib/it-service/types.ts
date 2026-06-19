@@ -150,6 +150,7 @@ export interface DashboardKpis {
 }
 
 export type NotificationType =
+  | "reminder_10d"
   | "reminder_7d"
   | "reminder_3d"
   | "due_today"

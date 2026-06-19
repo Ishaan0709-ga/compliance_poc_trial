@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useITService } from "@/lib/it-service/context";
 import { ITServiceShell } from "@/components/it-service/ITServiceShell";
 import { RequireOnboarding } from "@/components/it-service/RequireOnboarding";
@@ -15,6 +15,8 @@ import {
   chipClass,
 } from "@/lib/it-service/calendar-ui";
 import { sendWhatsAppBatch } from "@/lib/it-service/whatsapp.functions";
+import { autoDispatchWhatsApp } from "@/lib/it-service/whatsapp-auto";
+import { parseYmd } from "@/lib/it-service/date-utils";
 import { Link } from "@tanstack/react-router";
 import { ArrowLeft, ChevronLeft, ChevronRight, MessageCircle, Loader2 } from "lucide-react";
 
@@ -122,6 +124,26 @@ function CalendarContent() {
   const [editDate, setEditDate] = useState("");
   const [waBusy, setWaBusy] = useState(false);
   const [waMsg, setWaMsg] = useState<string | null>(null);
+  const [waAutoSent, setWaAutoSent] = useState<string[]>([]);
+  const autoRan = useRef(false);
+
+  // Auto-send WhatsApp when compliances are within 10-day window
+  useEffect(() => {
+    if (autoRan.current || !state.profile?.primaryContact) return;
+    autoRan.current = true;
+
+    autoDispatchWhatsApp(state.profile, state.notifications).then((result) => {
+      if (result.sent > 0) {
+        markWhatsAppSent(result.sentIds);
+        setWaAutoSent(result.messages);
+        setWaMsg(
+          result.demo
+            ? `✅ Auto WhatsApp demo: ${result.sent} reminder(s) sent to ${state.profile!.primaryContact} (Twilio demo mode — add env vars for live).`
+            : `✅ Auto WhatsApp: ${result.sent} reminder(s) delivered to ${state.profile!.primaryContact} via Twilio.`
+        );
+      }
+    });
+  }, [state.profile, state.notifications, markWhatsAppSent]);
 
   const filtered = useMemo(() => {
     return state.calendar.filter((item) => {
@@ -191,7 +213,7 @@ function CalendarContent() {
       ? filtered.filter((i) => i.dueDate.startsWith(String(cursor.getFullYear())))
       : view === "quarter"
         ? filtered.filter((i) => {
-            const d = new Date(i.dueDate + "T00:00:00");
+            const d = parseYmd(i.dueDate);
             return d.getFullYear() === quarterYear && Math.floor(d.getMonth() / 3) === quarterIndex;
           })
         : view === "list"
@@ -264,8 +286,20 @@ function CalendarContent() {
       />
 
       {waMsg && (
-        <div className="mb-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-[12px] text-ink-2">
-          {waMsg}
+        <div className="mb-3 rounded-xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-sky-50 px-4 py-3 shadow-sm">
+          <div className="flex items-start gap-2">
+            <MessageCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
+            <div>
+              <p className="text-[13px] font-semibold text-ink">{waMsg}</p>
+              {waAutoSent.length > 0 && (
+                <ul className="mt-2 space-y-1 border-t border-emerald-100 pt-2">
+                  {waAutoSent.map((m, i) => (
+                    <li key={i} className="text-[11px] text-ink-3">{m}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
@@ -364,7 +398,7 @@ function CalendarContent() {
           ) : (
             listItems.sort((a, b) => a.dueDate.localeCompare(b.dueDate)).map((item) => {
               const comp = getCompliance(item.complianceId)!;
-              const due = new Date(item.dueDate + "T00:00:00");
+              const due = parseYmd(item.dueDate);
               const ev = evidenceForCalendarItem(item, state.calendar, state.evidence);
               const isExpanded = expandedId === item.id;
               const notif = state.notifications.find((n) => n.complianceId === item.complianceId && n.dueDate === item.dueDate);

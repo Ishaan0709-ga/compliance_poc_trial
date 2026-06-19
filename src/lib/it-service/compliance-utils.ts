@@ -1,12 +1,11 @@
+import { ymd } from "./date-utils";
 import type { CalendarItem, EvidenceRecord } from "./types";
 
 const SCORE_ON_TIME = 100;
 const SCORE_LATE = 70;
 const SCORE_MISSING = 0;
 
-export function ymd(d: Date = new Date()) {
-  return d.toISOString().slice(0, 10);
-}
+export { ymd };
 
 /** Current open period for a compliance — overdue first, then nearest pending */
 export function findFocalCalendarItem(
