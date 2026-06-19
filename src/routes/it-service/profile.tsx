@@ -24,7 +24,7 @@ const REVENUE_BANDS = ["<40L", "40L-1Cr", "1-5Cr", "5-50Cr", "50Cr+"];
 
 function ProfilePage() {
   const navigate = useNavigate();
-  const { setProfile, state } = useITService();
+  const { setProfile, state, userMobile } = useITService();
   const [entityType, setEntityType] = useState<EntityType>("private_limited");
   const [industry, setIndustry] = useState("Information Technology");
 
@@ -44,7 +44,11 @@ function ProfilePage() {
         gstRegistered: state.profile.gstRegistered,
         handlesPersonalData: state.profile.handlesPersonalData,
         financialYearStart: state.profile.financialYearStart,
-        primaryContact: state.profile.primaryContact,
+        primaryContact: state.profile.mobileNumber || state.profile.primaryContact,
+        fullName: state.profile.fullName ?? "",
+        email: state.profile.email ?? "",
+        notificationEnabled: state.profile.notificationEnabled ?? true,
+        whatsappEnabled: state.profile.whatsappEnabled ?? true,
       });
       return;
     }
@@ -62,11 +66,16 @@ function ProfilePage() {
     handlesPersonalData: true,
     financialYearStart: 4,
     primaryContact: "",
+    fullName: "",
+    email: "",
+    notificationEnabled: true,
+    whatsappEnabled: true,
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const now = new Date().toISOString();
+    const mobile = userMobile || form.primaryContact;
     const profile: CompanyProfile = {
       companyId: state.profile?.companyId || createCompanyId(),
       companyName: form.companyName,
@@ -79,7 +88,13 @@ function ProfilePage() {
       countriesServed: [DEFAULT_COUNTRY],
       handlesPersonalData: form.handlesPersonalData,
       financialYearStart: form.financialYearStart,
-      primaryContact: form.primaryContact,
+      primaryContact: mobile,
+      mobileNumber: mobile,
+      fullName: form.fullName || undefined,
+      email: form.email || undefined,
+      countryCode: "+91",
+      notificationEnabled: form.notificationEnabled,
+      whatsappEnabled: form.whatsappEnabled,
       onboardingComplete: true,
       createdAt: state.profile?.createdAt || now,
       updatedAt: now,
@@ -258,16 +273,59 @@ function ProfilePage() {
             </select>
           )}
           {field(
-            "Primary contact",
+            "Mobile number (WhatsApp)",
             <input
-              required
-              value={form.primaryContact}
-              onChange={(e) => setForm({ ...form, primaryContact: e.target.value })}
-              className="w-full rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-[14px] outline-none"
-              placeholder="Name, email or phone (WhatsApp reminders)"
+              readOnly
+              value={userMobile ? userMobile.replace("+91", "+91 ") : form.primaryContact}
+              className="w-full rounded-lg border border-white/15 bg-white/5 px-3 py-2 text-[14px] text-white/70"
             />,
-            "Used for compliance calendar WhatsApp notification delivery."
+            "WhatsApp notifications are sent to your logged-in mobile number."
           )}
+          <div className="grid gap-4 md:grid-cols-2">
+            {field(
+              "Full name",
+              <input
+                value={form.fullName}
+                onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+                className="w-full rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-[14px] outline-none"
+                placeholder="Your name"
+              />
+            )}
+            {field(
+              "Email",
+              <input
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                className="w-full rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-[14px] outline-none"
+                placeholder="you@company.com"
+              />
+            )}
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            {field(
+              "Notifications enabled",
+              <select
+                value={form.notificationEnabled ? "yes" : "no"}
+                onChange={(e) => setForm({ ...form, notificationEnabled: e.target.value === "yes" })}
+                className={selectClass}
+              >
+                <option value="yes" className="text-ink">Yes</option>
+                <option value="no" className="text-ink">No</option>
+              </select>
+            )}
+            {field(
+              "WhatsApp reminders",
+              <select
+                value={form.whatsappEnabled ? "yes" : "no"}
+                onChange={(e) => setForm({ ...form, whatsappEnabled: e.target.value === "yes" })}
+                className={selectClass}
+              >
+                <option value="yes" className="text-ink">Yes</option>
+                <option value="no" className="text-ink">No</option>
+              </select>
+            )}
+          </div>
 
           <Btn
             type="submit"

@@ -167,6 +167,16 @@ export function isPhoneProviderError(message: string): boolean {
   return m.includes("unsupported phone") || m.includes("phone provider");
 }
 
+export function getUserMobileNumber(user: {
+  phone?: string | null;
+  email?: string | null;
+  user_metadata?: Record<string, unknown>;
+} | null): string | null {
+  if (!user) return null;
+  const display = displayPhoneFromUser(user);
+  if (!display) return null;
+  return normalizeIndianPhone(display);
+}
 export async function getCurrentUser() {
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) return null;

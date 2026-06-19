@@ -3,25 +3,32 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
+import type { User } from "@supabase/supabase-js";
 import {
   addEvidence,
+  applySchedulerResult,
+  appendNotificationHistory,
   getDefaultState,
   loadState,
   markEvidenceComplete as markComplete,
-  markNotificationsSent,
   saveProfile,
   updateCalendarDueDate,
   clearCalendarDueDateOverride,
 } from "./storage";
-import { setITServiceUserId } from "./auth";
+import { getUserMobileNumber, setITServiceUserId } from "./auth";
+import { runDailyNotificationScheduler } from "./notification-scheduler";
+import { ymd } from "./date-utils";
 import { supabase } from "@/integrations/supabase/client";
 import type { CompanyProfile, EvidenceRecord, ITServiceState } from "./types";
 
 type ITServiceContextValue = {
   state: ITServiceState;
+  user: User | null;
+  userMobile: string | null;
   refresh: () => void;
   setProfile: (profile: CompanyProfile) => ITServiceState;
   uploadEvidence: (
@@ -34,7 +41,6 @@ type ITServiceContextValue = {
   }) => void;
   updateDueDate: (itemId: string, dueDate: string) => void;
   resetDueDate: (itemId: string) => void;
-  markWhatsAppSent: (notificationIds: string[]) => void;
   hasProfile: boolean;
   isOnboarded: boolean;
 };
@@ -43,16 +49,21 @@ const ITServiceContext = createContext<ITServiceContextValue | null>(null);
 
 export function ITServiceProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<ITServiceState>(getDefaultState);
+  const [user, setUser] = useState<User | null>(null);
+  const schedulerRan = useRef(false);
 
   const refresh = useCallback(() => {
     setState(loadState() || getDefaultState());
   }, []);
+
+  const userMobile = user ? getUserMobileNumber(user) : null;
 
   useEffect(() => {
     let mounted = true;
 
     supabase.auth.getUser().then(({ data }) => {
       if (!mounted) return;
+      setUser(data.user ?? null);
       setITServiceUserId(data.user?.id ?? null);
       refresh();
     });
@@ -60,7 +71,9 @@ export function ITServiceProvider({ children }: { children: ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
       setITServiceUserId(session?.user?.id ?? null);
+      schedulerRan.current = false;
       refresh();
     });
 
@@ -73,9 +86,31 @@ export function ITServiceProvider({ children }: { children: ReactNode }) {
     };
   }, [refresh]);
 
+  // Silent daily WhatsApp scheduler — backend only, no UI
+  useEffect(() => {
+    if (schedulerRan.current) return;
+    if (!user?.id || !userMobile || !state.profile?.onboardingComplete) return;
+    if (state.profile.whatsappEnabled === false) return;
+
+    schedulerRan.current = true;
+    const today = ymd(new Date());
+
+    runDailyNotificationScheduler(state, user.id, userMobile).then((result) => {
+      if (result === null) return;
+      const next = applySchedulerResult(
+        loadState() ?? state,
+        result.sentNotificationIds,
+        result.history,
+        today
+      );
+      setState(next);
+    });
+  }, [user?.id, userMobile, state.profile?.onboardingComplete, state.profile?.whatsappEnabled]);
+
   const setProfile = useCallback((profile: CompanyProfile) => {
     const next = saveProfile(profile);
     setState(next);
+    schedulerRan.current = false;
     return next;
   }, []);
 
@@ -105,22 +140,18 @@ export function ITServiceProvider({ children }: { children: ReactNode }) {
     if (next) setState(next);
   }, []);
 
-  const markWhatsAppSent = useCallback((notificationIds: string[]) => {
-    const next = markNotificationsSent(notificationIds);
-    if (next) setState(next);
-  }, []);
-
   return (
     <ITServiceContext.Provider
       value={{
         state,
+        user,
+        userMobile,
         refresh,
         setProfile,
         uploadEvidence,
         markEvidenceComplete,
         updateDueDate,
         resetDueDate,
-        markWhatsAppSent,
         hasProfile: !!state.profile,
         isOnboarded: !!state.profile?.onboardingComplete,
       }}

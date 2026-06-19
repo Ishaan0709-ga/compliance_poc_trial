@@ -26,6 +26,7 @@ import type {
   EvidenceRecord,
   ITServiceState,
   NotificationRecord,
+  NotificationHistoryRecord,
 } from "./types";
 
 const LEGACY_STORAGE_KEY = "complyos-it-service";
@@ -82,6 +83,7 @@ export function createCompanyId(): string {
 }
 
 export function normalizeProfile(profile: CompanyProfile): CompanyProfile {
+  const mobile = profile.mobileNumber || profile.primaryContact || "";
   return {
     ...profile,
     entityType: normalizeEntityType(profile.entityType),
@@ -90,6 +92,11 @@ export function normalizeProfile(profile: CompanyProfile): CompanyProfile {
       profile.industry === "IT Service"
         ? "Information Technology"
         : profile.industry,
+    mobileNumber: mobile,
+    primaryContact: mobile,
+    countryCode: profile.countryCode ?? "+91",
+    notificationEnabled: profile.notificationEnabled ?? true,
+    whatsappEnabled: profile.whatsappEnabled ?? true,
   };
 }
 
@@ -98,7 +105,9 @@ export function recomputeState(
   evidence: EvidenceRecord[] = [],
   previousScores: ComplianceScore[] = [],
   dueDateOverrides: Record<string, string> = {},
-  previousNotifications: NotificationRecord[] = []
+  previousNotifications: NotificationRecord[] = [],
+  previousHistory: NotificationHistoryRecord[] = [],
+  lastNotificationRunDate?: string
 ): ITServiceState {
   const normalized = normalizeProfile(profile);
   const applicable = runRuleEngine(normalized);
@@ -119,7 +128,11 @@ export function recomputeState(
     domainScores,
     risks
   );
-  const notifications = generateNotifications(normalized, calendar, previousNotifications);
+  const recipient = normalized.mobileNumber || normalized.primaryContact || "";
+  const notifications = generateNotifications(calendar, recipient, previousNotifications, {
+    whatsappEnabled: normalized.whatsappEnabled,
+    notificationEnabled: normalized.notificationEnabled,
+  });
   const recentActivity = buildRecentActivity(evidence, scores, previousScores);
 
   const today = new Date();
@@ -150,6 +163,8 @@ export function recomputeState(
     insights,
     domainScores,
     notifications,
+    notificationHistory: previousHistory,
+    lastNotificationRunDate,
     recentActivity,
     dueDateOverrides,
     kpis: {
@@ -187,7 +202,9 @@ export function loadState(): ITServiceState | null {
       parsed.evidence || [],
       previousScores,
       overrides,
-      parsed.notifications ?? []
+      parsed.notifications ?? [],
+      parsed.notificationHistory ?? [],
+      parsed.lastNotificationRunDate
     );
     return {
       ...state,
@@ -216,7 +233,15 @@ export function saveProfile(profile: CompanyProfile): ITServiceState {
   const evidence = existing?.evidence || [];
   const previousScores = pickPreviousScores(existing);
   const overrides = existing?.dueDateOverrides ?? {};
-  const state = recomputeState(profile, evidence, previousScores, overrides, existing?.notifications ?? []);
+  const state = recomputeState(
+    profile,
+    evidence,
+    previousScores,
+    overrides,
+    existing?.notifications ?? [],
+    existing?.notificationHistory ?? [],
+    existing?.lastNotificationRunDate
+  );
   const merged = {
     ...state,
     recentActivity: mergeActivity(existing?.recentActivity ?? [], state.recentActivity),
@@ -254,7 +279,15 @@ export function addEvidence(
     validationStatus: record.validationStatus || "approved",
     source: record.source ?? "upload",
   };
-  const state = recomputeState(current.profile, [...withoutDuplicate, evidence], current.scores, current.dueDateOverrides ?? {}, current.notifications ?? []);
+  const state = recomputeState(
+    current.profile,
+    [...withoutDuplicate, evidence],
+    current.scores,
+    current.dueDateOverrides ?? {},
+    current.notifications ?? [],
+    current.notificationHistory ?? [],
+    current.lastNotificationRunDate
+  );
   const merged = {
     ...state,
     recentActivity: mergeActivity(current.recentActivity ?? [], state.recentActivity),
@@ -295,7 +328,15 @@ export function markEvidenceComplete(record: {
     source: "attestation",
   };
 
-  const state = recomputeState(current.profile, [...withoutFocal, evidence], current.scores, current.dueDateOverrides ?? {}, current.notifications ?? []);
+  const state = recomputeState(
+    current.profile,
+    [...withoutFocal, evidence],
+    current.scores,
+    current.dueDateOverrides ?? {},
+    current.notifications ?? [],
+    current.notificationHistory ?? [],
+    current.lastNotificationRunDate
+  );
   const merged = {
     ...state,
     recentActivity: mergeActivity(current.recentActivity ?? [], state.recentActivity),
@@ -331,12 +372,48 @@ function persistRecomputed(
     current.evidence,
     current.scores,
     overrides,
-    current.notifications ?? []
+    current.notifications ?? [],
+    current.notificationHistory ?? [],
+    current.lastNotificationRunDate
   );
   const merged = {
     ...state,
     recentActivity: mergeActivity(current.recentActivity ?? [], state.recentActivity),
   };
+  saveState(merged);
+  return merged;
+}
+
+export function applySchedulerResult(
+  current: ITServiceState,
+  sentNotificationIds: string[],
+  history: NotificationHistoryRecord[],
+  runDate: string
+): ITServiceState {
+  const sentAt = new Date().toISOString();
+  const notifications = current.notifications.map((n) =>
+    sentNotificationIds.includes(n.notificationId)
+      ? { ...n, status: "sent" as const, sentAt }
+      : n
+  );
+  const notificationHistory = [...(current.notificationHistory ?? []), ...history].slice(-200);
+  const merged = {
+    ...current,
+    notifications,
+    notificationHistory,
+    lastNotificationRunDate: runDate,
+  };
+  saveState(merged);
+  return merged;
+}
+
+export function appendNotificationHistory(
+  record: NotificationHistoryRecord
+): ITServiceState | null {
+  const current = loadState();
+  if (!current) return null;
+  const notificationHistory = [...(current.notificationHistory ?? []), record].slice(-200);
+  const merged = { ...current, notificationHistory };
   saveState(merged);
   return merged;
 }
@@ -366,6 +443,7 @@ export function getDefaultState(): ITServiceState {
     insights: [],
     domainScores: [],
     notifications: [],
+    notificationHistory: [],
     recentActivity: [],
     dueDateOverrides: {},
     kpis: emptyKpis(),

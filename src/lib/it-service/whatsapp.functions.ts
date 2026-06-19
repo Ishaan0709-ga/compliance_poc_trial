@@ -3,7 +3,7 @@ import { z } from "zod";
 
 const inputSchema = z.object({
   to: z.string().min(10),
-  message: z.string().min(1).max(1600),
+  message: z.string().min(1).max(4000),
   notificationId: z.string().optional(),
 });
 
@@ -23,8 +23,7 @@ async function sendViaTwilio(to: string, message: string): Promise<WhatsAppSendR
     return {
       ok: true,
       demo: true,
-      error:
-        "Twilio not configured — set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM in server env. Message logged for demo.",
+      error: "Twilio env vars not configured — TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM",
     };
   }
 
@@ -34,7 +33,7 @@ async function sendViaTwilio(to: string, message: string): Promise<WhatsAppSendR
     const e164 =
       digits.length === 10
         ? `+91${digits}`
-        : digits.startsWith("91")
+        : digits.startsWith("91") && digits.length === 12
           ? `+${digits}`
           : toWhatsApp.startsWith("+")
             ? toWhatsApp
@@ -71,18 +70,18 @@ async function sendViaTwilio(to: string, message: string): Promise<WhatsAppSendR
   return { ok: true, demo: false, sid: json.sid };
 }
 
-/** Send a single WhatsApp message via Twilio (or demo mode). */
+/** Send a single WhatsApp message via Twilio */
 export const sendWhatsAppNotification = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) => inputSchema.parse(d))
   .handler(async ({ data }) => {
     const result = await sendViaTwilio(data.to, data.message);
     if (result.demo) {
-      console.info("[WhatsApp demo]", data.to, data.message);
+      console.info("[ComplyOS WhatsApp demo]", data.to.slice(0, 6) + "…", data.message.slice(0, 40) + "…");
     }
     return result;
   });
 
-/** Batch-send pending compliance reminders. */
+/** Batch-send compliance reminders or executive summary */
 export const sendWhatsAppBatch = createServerFn({ method: "POST" })
   .inputValidator((d: unknown) =>
     z
@@ -92,6 +91,8 @@ export const sendWhatsAppBatch = createServerFn({ method: "POST" })
           z.object({
             notificationId: z.string(),
             message: z.string(),
+            complianceId: z.string().optional().nullable(),
+            messageType: z.string().optional(),
           })
         ),
       })
@@ -99,9 +100,18 @@ export const sendWhatsAppBatch = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const results: { notificationId: string; result: WhatsAppSendResult }[] = [];
-    for (const item of data.messages.slice(0, 5)) {
+    for (const item of data.messages.slice(0, 8)) {
       const result = await sendViaTwilio(data.recipient, item.message);
       results.push({ notificationId: item.notificationId, result });
     }
     return { results };
+  });
+
+/** Send executive summary to logged-in user's mobile */
+export const sendExecutiveSummaryWhatsApp = createServerFn({ method: "POST" })
+  .inputValidator((d: unknown) =>
+    z.object({ recipient: z.string().min(10), message: z.string().min(1) }).parse(d)
+  )
+  .handler(async ({ data }) => {
+    return sendViaTwilio(data.recipient, data.message);
   });

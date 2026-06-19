@@ -78,7 +78,14 @@ export interface CompanyProfile {
   countriesServed: string[];
   handlesPersonalData: boolean;
   financialYearStart: number;
+  /** @deprecated use mobileNumber — kept for migration */
   primaryContact: string;
+  fullName?: string;
+  email?: string;
+  mobileNumber?: string;
+  countryCode?: string;
+  notificationEnabled?: boolean;
+  whatsappEnabled?: boolean;
   onboardingComplete: boolean;
   createdAt: string;
   updatedAt: string;
@@ -151,12 +158,14 @@ export interface DashboardKpis {
 
 export type NotificationType =
   | "reminder_10d"
-  | "reminder_7d"
   | "reminder_3d"
   | "due_today"
-  | "overdue";
+  | "overdue"
+  | "executive_summary";
 
 export type NotificationStatus = "pending" | "sent" | "skipped";
+
+export type DeliveryStatus = "delivered" | "queued" | "failed";
 
 export interface NotificationRecord {
   notificationId: string;
@@ -168,6 +177,19 @@ export interface NotificationRecord {
   sentAt: string | null;
   status: NotificationStatus;
   channel: "whatsapp";
+}
+
+/** Persisted delivery log — backend only */
+export interface NotificationHistoryRecord {
+  notificationId: string;
+  userId: string;
+  complianceId: string | null;
+  recipientNumber: string;
+  messageType: NotificationType;
+  messageBody: string;
+  sentAt: string;
+  deliveryStatus: DeliveryStatus;
+  twilioMessageSid: string | null;
 }
 
 export interface ActivityRecord {
@@ -189,6 +211,9 @@ export interface ITServiceState {
   kpis: DashboardKpis;
   domainScores: DomainScore[];
   notifications: NotificationRecord[];
+  notificationHistory: NotificationHistoryRecord[];
+  /** ISO date YYYY-MM-DD of last daily scheduler run */
+  lastNotificationRunDate?: string;
   recentActivity: ActivityRecord[];
   /** Manual due-date overrides keyed by calendar item id */
   dueDateOverrides: Record<string, string>;

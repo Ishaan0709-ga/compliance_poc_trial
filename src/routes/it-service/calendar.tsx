@@ -1,24 +1,22 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useITService } from "@/lib/it-service/context";
 import { ITServiceShell } from "@/components/it-service/ITServiceShell";
 import { RequireOnboarding } from "@/components/it-service/RequireOnboarding";
 import { PageHeader, Card, Pill, Btn } from "@/components/ui-kit";
 import { getCompliance, DOMAINS } from "@/lib/it-service/master-data";
+import { domainBadge } from "@/lib/it-service/domain-labels";
 import type { CalendarItem, CalendarStatus } from "@/lib/it-service/types";
 import { ComplianceEvidencePanel } from "@/components/it-service/ComplianceEvidenceActions";
-import { evidenceForCalendarItem } from "@/lib/it-service/compliance-utils";
 import {
   STATUS_STYLES,
   WEEKDAYS,
   buildMonthGrid,
   chipClass,
 } from "@/lib/it-service/calendar-ui";
-import { sendWhatsAppBatch } from "@/lib/it-service/whatsapp.functions";
-import { autoDispatchWhatsApp } from "@/lib/it-service/whatsapp-auto";
 import { parseYmd } from "@/lib/it-service/date-utils";
 import { Link } from "@tanstack/react-router";
-import { ArrowLeft, ChevronLeft, ChevronRight, MessageCircle, Loader2 } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
 
 export const Route = createFileRoute("/it-service/calendar")({
   component: CalendarPage,
@@ -89,7 +87,7 @@ function MonthGrid({
                         title={`${comp.name} · ${item.status}`}
                         className={`block w-full text-left ${chipClass(item, comp.frequency)}`}
                       >
-                        {comp.domainId} {comp.name}
+                        {domainBadge(comp.domainId)} {comp.name}
                       </button>
                     );
                   })}
@@ -109,7 +107,7 @@ function MonthGrid({
 }
 
 function CalendarContent() {
-  const { state, updateDueDate, resetDueDate, markWhatsAppSent } = useITService();
+  const { state, updateDueDate, resetDueDate } = useITService();
   const [view, setView] = useState<ViewMode>("month");
   const [cursor, setCursor] = useState(() => {
     const d = new Date();
@@ -122,28 +120,6 @@ function CalendarContent() {
   const [risk, setRisk] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editDate, setEditDate] = useState("");
-  const [waBusy, setWaBusy] = useState(false);
-  const [waMsg, setWaMsg] = useState<string | null>(null);
-  const [waAutoSent, setWaAutoSent] = useState<string[]>([]);
-  const autoRan = useRef(false);
-
-  // Auto-send WhatsApp when compliances are within 10-day window
-  useEffect(() => {
-    if (autoRan.current || !state.profile?.primaryContact) return;
-    autoRan.current = true;
-
-    autoDispatchWhatsApp(state.profile, state.notifications).then((result) => {
-      if (result.sent > 0) {
-        markWhatsAppSent(result.sentIds);
-        setWaAutoSent(result.messages);
-        setWaMsg(
-          result.demo
-            ? `✅ Auto WhatsApp demo: ${result.sent} reminder(s) sent to ${state.profile!.primaryContact} (Twilio demo mode — add env vars for live).`
-            : `✅ Auto WhatsApp: ${result.sent} reminder(s) delivered to ${state.profile!.primaryContact} via Twilio.`
-        );
-      }
-    });
-  }, [state.profile, state.notifications, markWhatsAppSent]);
 
   const filtered = useMemo(() => {
     return state.calendar.filter((item) => {
@@ -159,7 +135,6 @@ function CalendarContent() {
   }, [state.calendar, search, domain, status, owner, risk]);
 
   const owners = [...new Set(state.calendar.map((c) => c.owner))].sort();
-  const pendingNotifications = state.notifications.filter((n) => n.status === "pending");
   const monthLabel = cursor.toLocaleString("en-IN", { month: "long", year: "numeric" });
   const quarterIndex = Math.floor(cursor.getMonth() / 3);
   const quarterYear = cursor.getFullYear();
@@ -220,44 +195,6 @@ function CalendarContent() {
           ? filtered
           : itemsInMonth;
 
-  const handleSendWhatsApp = async () => {
-    const recipient = state.profile?.primaryContact;
-    if (!recipient) {
-      setWaMsg("Add primary contact (mobile) on company profile for WhatsApp.");
-      return;
-    }
-    const pending = pendingNotifications.slice(0, 5);
-    if (pending.length === 0) {
-      setWaMsg("No pending reminders for today — adjust dates or wait for due window.");
-      return;
-    }
-    setWaBusy(true);
-    setWaMsg(null);
-    try {
-      const result = await sendWhatsAppBatch({
-        data: {
-          recipient,
-          messages: pending.map((n) => ({
-            notificationId: n.notificationId,
-            message: n.message,
-          })),
-        },
-      });
-      const sentIds = result.results.filter((r) => r.result.ok).map((r) => r.notificationId);
-      if (sentIds.length) markWhatsAppSent(sentIds);
-      const demo = result.results.some((r) => r.result.demo);
-      setWaMsg(
-        demo
-          ? `Demo mode: ${sentIds.length} message(s) queued (add Twilio env vars for live send).`
-          : `Sent ${sentIds.length} WhatsApp reminder(s) via Twilio.`
-      );
-    } catch (e) {
-      setWaMsg(e instanceof Error ? e.message : "WhatsApp send failed");
-    } finally {
-      setWaBusy(false);
-    }
-  };
-
   const saveDueDate = (itemId: string) => {
     if (!editDate) return;
     updateDueDate(itemId, editDate);
@@ -276,32 +213,8 @@ function CalendarContent() {
 
       <PageHeader
         title="Compliance calendar"
-        subtitle={`Generated from compliance master & rule engine · ${pendingNotifications.length} WhatsApp reminder(s) queued`}
-        actions={
-          <Btn variant="o" onClick={handleSendWhatsApp} disabled={waBusy}>
-            {waBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MessageCircle className="h-3.5 w-3.5" />}
-            Send WhatsApp demo
-          </Btn>
-        }
+        subtitle="Generated from compliance master & rule engine"
       />
-
-      {waMsg && (
-        <div className="mb-3 rounded-xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-sky-50 px-4 py-3 shadow-sm">
-          <div className="flex items-start gap-2">
-            <MessageCircle className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
-            <div>
-              <p className="text-[13px] font-semibold text-ink">{waMsg}</p>
-              {waAutoSent.length > 0 && (
-                <ul className="mt-2 space-y-1 border-t border-emerald-100 pt-2">
-                  {waAutoSent.map((m, i) => (
-                    <li key={i} className="text-[11px] text-ink-3">{m}</li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       <Card className="mb-4 border-primary/10 bg-gradient-to-br from-surface-1 via-background to-sky-50/30">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -399,9 +312,7 @@ function CalendarContent() {
             listItems.sort((a, b) => a.dueDate.localeCompare(b.dueDate)).map((item) => {
               const comp = getCompliance(item.complianceId)!;
               const due = parseYmd(item.dueDate);
-              const ev = evidenceForCalendarItem(item, state.calendar, state.evidence);
               const isExpanded = expandedId === item.id;
-              const notif = state.notifications.find((n) => n.complianceId === item.complianceId && n.dueDate === item.dueDate);
 
               return (
                 <div key={item.id} className="py-3">
@@ -413,17 +324,22 @@ function CalendarContent() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className={`rounded-md border px-1.5 py-0.5 text-[10px] font-bold ${chipClass(item, comp.frequency)}`}>{comp.domainId}</span>
+                        <span className={`rounded-md border px-1.5 py-0.5 text-[10px] font-bold ${chipClass(item, comp.frequency)}`}>
+                          {domainBadge(comp.domainId)}
+                        </span>
                         <span className="text-[13px] font-bold">{comp.name}</span>
                       </div>
-                      <div className="mt-0.5 text-[12px] text-ink-3">{item.period} · Owner: {item.owner} · {comp.riskLevel}</div>
-                      {item.systemDueDate && item.systemDueDate !== item.dueDate && (
-                        <div className="mt-0.5 text-[11px] text-amber-700">Adjusted from {item.systemDueDate}</div>
-                      )}
-                      {notif && <div className="mt-1 text-[11px] text-emerald-700">WhatsApp: {notif.message}</div>}
+                      <div className="mt-1 flex flex-wrap gap-2 text-[12px] text-ink-3">
+                        <span>Owner: {item.owner}</span>
+                        <Pill tone={comp.riskLevel === "Critical" ? "miss" : comp.riskLevel === "High" ? "pend" : "n"}>
+                          {comp.riskLevel}
+                        </Pill>
+                      </div>
                     </div>
                     <div className="shrink-0 text-right">
-                      <Pill tone={item.status === "completed" ? "done" : item.status === "overdue" ? "miss" : "pend"}>{item.status.toUpperCase()}</Pill>
+                      <Pill tone={item.status === "completed" ? "done" : item.status === "overdue" ? "miss" : "pend"}>
+                        {item.status === "completed" ? "COMPLETED" : item.status === "overdue" ? "OVERDUE" : "PENDING"}
+                      </Pill>
                       <button type="button" onClick={() => { setExpandedId(isExpanded ? null : item.id); setEditDate(item.dueDate); }} className="mt-1 block text-[11px] font-bold text-primary hover:underline">
                         {isExpanded ? "Close" : "Details →"}
                       </button>
