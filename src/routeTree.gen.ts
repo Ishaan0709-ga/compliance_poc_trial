@@ -50,6 +50,7 @@ import { Route as FounderPayrollRouteImport } from './routes/founder/payroll'
 import { Route as FounderOrdersRouteImport } from './routes/founder/orders'
 import { Route as FounderMarketplaceRouteImport } from './routes/founder/marketplace'
 import { Route as FounderKpisRouteImport } from './routes/founder/kpis'
+import { Route as FounderDataCenterRouteImport } from './routes/founder/data-center'
 import { Route as FounderCalendarRouteImport } from './routes/founder/calendar'
 import { Route as FounderBillingRouteImport } from './routes/founder/billing'
 import { Route as AdminSlaRouteImport } from './routes/admin/sla'
@@ -275,6 +276,11 @@ const FounderKpisRoute = FounderKpisRouteImport.update({
   path: '/founder/kpis',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FounderDataCenterRoute = FounderDataCenterRouteImport.update({
+  id: '/founder/data-center',
+  path: '/founder/data-center',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FounderCalendarRoute = FounderCalendarRouteImport.update({
   id: '/founder/calendar',
   path: '/founder/calendar',
@@ -389,6 +395,7 @@ export interface FileRoutesByFullPath {
   '/admin/sla': typeof AdminSlaRoute
   '/founder/billing': typeof FounderBillingRoute
   '/founder/calendar': typeof FounderCalendarRoute
+  '/founder/data-center': typeof FounderDataCenterRoute
   '/founder/kpis': typeof FounderKpisRoute
   '/founder/marketplace': typeof FounderMarketplaceRoute
   '/founder/orders': typeof FounderOrdersRoute
@@ -451,6 +458,7 @@ export interface FileRoutesByTo {
   '/admin/sla': typeof AdminSlaRoute
   '/founder/billing': typeof FounderBillingRoute
   '/founder/calendar': typeof FounderCalendarRoute
+  '/founder/data-center': typeof FounderDataCenterRoute
   '/founder/kpis': typeof FounderKpisRoute
   '/founder/marketplace': typeof FounderMarketplaceRoute
   '/founder/orders': typeof FounderOrdersRoute
@@ -514,6 +522,7 @@ export interface FileRoutesById {
   '/admin/sla': typeof AdminSlaRoute
   '/founder/billing': typeof FounderBillingRoute
   '/founder/calendar': typeof FounderCalendarRoute
+  '/founder/data-center': typeof FounderDataCenterRoute
   '/founder/kpis': typeof FounderKpisRoute
   '/founder/marketplace': typeof FounderMarketplaceRoute
   '/founder/orders': typeof FounderOrdersRoute
@@ -578,6 +587,7 @@ export interface FileRouteTypes {
     | '/admin/sla'
     | '/founder/billing'
     | '/founder/calendar'
+    | '/founder/data-center'
     | '/founder/kpis'
     | '/founder/marketplace'
     | '/founder/orders'
@@ -640,6 +650,7 @@ export interface FileRouteTypes {
     | '/admin/sla'
     | '/founder/billing'
     | '/founder/calendar'
+    | '/founder/data-center'
     | '/founder/kpis'
     | '/founder/marketplace'
     | '/founder/orders'
@@ -702,6 +713,7 @@ export interface FileRouteTypes {
     | '/admin/sla'
     | '/founder/billing'
     | '/founder/calendar'
+    | '/founder/data-center'
     | '/founder/kpis'
     | '/founder/marketplace'
     | '/founder/orders'
@@ -765,6 +777,7 @@ export interface RootRouteChildren {
   AdminSlaRoute: typeof AdminSlaRoute
   FounderBillingRoute: typeof FounderBillingRoute
   FounderCalendarRoute: typeof FounderCalendarRoute
+  FounderDataCenterRoute: typeof FounderDataCenterRoute
   FounderKpisRoute: typeof FounderKpisRoute
   FounderMarketplaceRoute: typeof FounderMarketplaceRoute
   FounderOrdersRoute: typeof FounderOrdersRoute
@@ -1082,6 +1095,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FounderKpisRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/founder/data-center': {
+      id: '/founder/data-center'
+      path: '/founder/data-center'
+      fullPath: '/founder/data-center'
+      preLoaderRoute: typeof FounderDataCenterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/founder/calendar': {
       id: '/founder/calendar'
       path: '/founder/calendar'
@@ -1280,6 +1300,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminSlaRoute: AdminSlaRoute,
   FounderBillingRoute: FounderBillingRoute,
   FounderCalendarRoute: FounderCalendarRoute,
+  FounderDataCenterRoute: FounderDataCenterRoute,
   FounderKpisRoute: FounderKpisRoute,
   FounderMarketplaceRoute: FounderMarketplaceRoute,
   FounderOrdersRoute: FounderOrdersRoute,
