@@ -14,6 +14,7 @@ import {
   AuthTextInput,
   PasswordInput,
 } from "@/components/auth/AuthField";
+import { PortalSwitcher } from "@/components/PortalSwitcher";
 import { AuthBrandPanel, AuthMobileHeader, AuthModeTabs } from "@/components/auth/AuthShell";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -243,6 +244,9 @@ function LoginPage() {
       <div className="flex items-center justify-center bg-background px-6 py-10 md:py-12">
         <div className="w-full max-w-md">
           <AuthMobileHeader />
+          <div className="mb-5">
+            <PortalSwitcher mode="public" />
+          </div>
 
           <div className="mb-6">
             <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary">
@@ -440,12 +444,9 @@ function LoginPage() {
             </form>
           )}
 
-          <div className="mt-8 flex flex-col gap-3 border-t border-border pt-6 text-[12px] text-ink-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="mt-8 border-t border-border pt-6 text-[12px] text-ink-4">
             <Link to="/" className="font-medium hover:text-ink-2">
               ← Back to home
-            </Link>
-            <Link to="/it-service/login" className="font-medium text-primary hover:underline">
-              IT Service portal →
             </Link>
           </div>
         </div>

@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { motion } from "framer-motion";
+import { PortalSwitcher } from "@/components/PortalSwitcher";
 import { ShieldCheck, ArrowRight, Sparkles, Bot, Zap, CheckCircle2 } from "lucide-react";
 import { INDUSTRIES } from "@/lib/industries";
 
@@ -40,29 +41,12 @@ function Landing() {
               Comply<span className="text-[oklch(0.78_0.12_265)]">OS</span>
             </span>
           </div>
-          <nav className="hidden items-center gap-6 text-[13px] text-white/70 md:flex">
-            <a href="#industries" className="hover:text-white">Industries</a>
-            <a href="#how" className="hover:text-white">How it works</a>
-            <a href="#agents" className="hover:text-white">Agents</a>
-          </nav>
-          <div className="flex items-center gap-2">
-            <Link
-              to="/it-service/login"
-              className="hidden rounded-lg border border-white/15 px-3.5 py-2 text-[12px] font-bold text-white/80 backdrop-blur transition-colors hover:bg-white/10 sm:inline-flex"
-            >
-              IT Service
-            </Link>
-            <Link
-              to="/login"
-              search={{ mode: "signin" }}
-              className="rounded-lg border border-white/15 bg-white/5 px-3.5 py-2 text-[13px] font-bold backdrop-blur transition-colors hover:bg-white/15"
-            >
-              Sign in
-            </Link>
+          <div className="flex items-center gap-3">
+            <PortalSwitcher variant="onDark" mode="public" />
             <Link
               to="/login"
               search={{ mode: "signup" }}
-              className="rounded-lg bg-primary px-3.5 py-2 text-[13px] font-bold text-primary-foreground shadow-lg shadow-primary/25 transition-colors hover:bg-primary/90"
+              className="hidden rounded-lg bg-primary px-3.5 py-2 text-[13px] font-bold text-primary-foreground shadow-lg shadow-primary/25 transition-colors hover:bg-primary/90 sm:inline-flex"
             >
               Get started
             </Link>

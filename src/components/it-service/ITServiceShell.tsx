@@ -1,5 +1,6 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
-import { ShieldCheck, Search, Bell, Sparkles, LogOut } from "lucide-react";
+import { PortalSwitcher } from "@/components/PortalSwitcher";
+import { ShieldCheck, Search, Bell, LogOut } from "lucide-react";
 import { getIndustry } from "@/lib/industries";
 import { DOMAINS } from "@/lib/it-service/master-data";
 import { useITService } from "@/lib/it-service/context";
@@ -11,7 +12,8 @@ import {
 } from "@/lib/it-service/auth";
 import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState, type ReactNode } from "react";
-import type { User } from "@supabase/supabase-js";import {
+import type { User } from "@supabase/supabase-js";
+import {
   LayoutDashboard,
   Building2,
   Receipt,
@@ -148,23 +150,20 @@ export function ITServiceShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <header className="sticky top-0 z-40 flex h-[60px] items-center justify-between border-b border-border bg-surface px-6 shadow-card">
-        <div className="flex items-center gap-3">
-          <Link to="/" className="flex items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2 md:gap-3">
+          <Link to="/it-service/dashboard" className="flex shrink-0 items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-primary text-primary-foreground">
               <ShieldCheck className="h-4 w-4" strokeWidth={2.4} />
             </div>
-            <span className="text-[16px] font-extrabold tracking-[-0.03em] text-ink">
+            <span className="hidden text-[16px] font-extrabold tracking-[-0.03em] text-ink sm:inline">
               Comply<span className="text-primary">OS</span>
             </span>
           </Link>
-          <div className="mx-2 h-6 w-px bg-border" />
-          <div className="flex items-center gap-2 rounded-full border border-primary-border bg-primary-muted px-3 py-1 text-xs font-bold text-primary">
+          <PortalSwitcher />
+          <div className="mx-1 hidden h-6 w-px bg-border lg:block" />
+          <div className="hidden items-center gap-2 rounded-full border border-primary-border bg-primary-muted px-3 py-1 text-xs font-bold text-primary lg:flex">
             <Icon className="h-3.5 w-3.5" />
             {industry.name}
-          </div>
-          <div className="hidden items-center gap-1.5 rounded-full border border-purple-border bg-purple-muted px-3 py-1 text-xs font-bold text-purple md:flex">
-            <Sparkles className="h-3 w-3" />
-            {industry.agents} agents online
           </div>
         </div>
         <div className="flex items-center gap-2">

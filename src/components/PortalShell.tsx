@@ -2,6 +2,7 @@ import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { Search, Bell, LogOut, PanelLeftClose, PanelLeftOpen, Menu, X } from "lucide-react";
 import graeLogo from "@/assets/grae-logo.png";
 import { useState, useEffect, type ReactNode } from "react";
+import { PortalSwitcher } from "@/components/PortalSwitcher";
 import { PORTALS, type PortalId } from "@/lib/portals";
 import { getActiveOrderCount } from "@/lib/marketplace/storage";
 import { supabase } from "@/integrations/supabase/client";
@@ -96,11 +97,15 @@ export function PortalShell({
           >
             <Menu className="h-4 w-4" />
           </button>
-          <Link to="/" className="flex shrink-0 items-center gap-2.5">
+          <Link
+            to={portalId === "founder" ? "/founder" : "/"}
+            className="flex shrink-0 items-center gap-2.5"
+          >
             <img src={graeLogo} alt="Grae" className="h-7 w-auto invert dark:invert-0 opacity-90" />
           </Link>
+          {portalId === "founder" && <PortalSwitcher />}
           <div className="mx-2 hidden h-6 w-px bg-border sm:block" />
-          <div className={`hidden rounded-full border border-border bg-surface-2 px-3 py-1 text-[11px] font-medium sm:block ${portal.accent}`}>
+          <div className={`hidden rounded-full border border-border bg-surface-2 px-3 py-1 text-[11px] font-medium lg:block ${portal.accent}`}>
             {portal.name}
           </div>
         </div>
@@ -178,6 +183,11 @@ export function PortalShell({
             <div className="flex-1 px-2 py-2">
               <NavList onNavigate={() => setMobileOpen(false)} />
             </div>
+            {portalId === "founder" && (
+              <div className="px-3 pb-2">
+                <PortalSwitcher />
+              </div>
+            )}
             <button
               onClick={handleSignOut}
               className="m-3 flex h-10 items-center justify-center gap-1.5 rounded-lg border border-border bg-surface-2 text-[13px] font-medium text-ink-2"

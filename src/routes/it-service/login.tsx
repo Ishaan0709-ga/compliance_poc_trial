@@ -6,11 +6,11 @@ import {
   KeyRound,
   Loader2,
   Phone,
-  Server,
   ShieldCheck,
   UserPlus,
 } from "lucide-react";
 import { AuthMessage, PinInput } from "@/components/auth/AuthField";
+import { PortalSwitcher } from "@/components/PortalSwitcher";
 import { resetItServicePin } from "@/lib/auth.functions";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -206,10 +206,7 @@ function ITServiceLoginPage() {
             Comply<span className="text-[oklch(0.78_0.12_265)]">OS</span>
           </span>
         </Link>
-        <div className="flex items-center gap-2 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-[11px] font-bold backdrop-blur">
-          <Server className="h-3.5 w-3.5 text-cyan" />
-          IT Service
-        </div>
+        <PortalSwitcher variant="onDark" mode="public" />
       </header>
 
       <div className="relative z-10 flex flex-1 items-center justify-center px-6 pb-16 pt-4">
@@ -446,12 +443,9 @@ function ITServiceLoginPage() {
             )}
           </div>
 
-          <div className="mt-6 flex flex-col items-center gap-2 text-center text-[12px] text-white/40 sm:flex-row sm:justify-between">
+          <div className="mt-6 text-center text-[12px] text-white/40">
             <Link to="/" className="hover:text-white/65">
-              ← Main site
-            </Link>
-            <Link to="/login" className="hover:text-white/65">
-              Founder / Admin login →
+              ← Back to home
             </Link>
           </div>
         </div>
