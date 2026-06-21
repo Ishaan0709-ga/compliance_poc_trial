@@ -68,7 +68,7 @@ export const PORTALS: Record<PortalId, PortalConfig> = {
           { label: "Dashboard", to: "/founder", icon: LayoutDashboard },
           { label: "Growth KPIs", to: "/founder/kpis", icon: BarChart3 },
           { label: "Service Marketplace", to: "/founder/marketplace", icon: ShoppingBag },
-          { label: "My Orders", to: "/founder/orders", icon: ListChecks, badge: "3" },
+          { label: "My Orders", to: "/founder/orders", icon: ListChecks },
           { label: "Document Vault", to: "/founder/vault", icon: FolderLock },
           { label: "Compliance Calendar", to: "/founder/calendar", icon: CalendarClock },
           { label: "Regulatory Updates", to: "/founder/regulatory", icon: Radar, badge: "live" },

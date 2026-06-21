@@ -128,7 +128,7 @@ function FounderHome() {
   const industry = "SaaS Company";
 
   const chartData = snap.chartMonths.map((row) => ({
-    month: row.month.replace("-26", ""),
+    month: row.month,
     mrr: row.mrr,
     arr: row.arr,
     revenue: row.revenue,
@@ -259,7 +259,7 @@ function FounderHome() {
             {[
               ["Net new MRR", inr(m.netNewMrr, { compact: true })],
               ["MRR quick ratio", formatRatio(m.mrrQuickRatio)],
-              ["Lead-to-close", formatPctRate(m.closedWon / Math.max(m.leads, 1))],
+              ["Lead-to-close", formatPctRate(m.leadToCloseRate)],
               ["Deals closed-won", String(m.closedWon)],
             ].map(([label, val]) => (
               <div key={label} className="rounded-lg bg-surface-2/60 px-3 py-2">

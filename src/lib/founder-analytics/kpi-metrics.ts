@@ -1,6 +1,6 @@
 import { inr } from "@/lib/format";
 import { formatPctRate, formatRatio, formatTrendMom } from "./compute";
-import type { MonthlyRecord } from "./types";
+import type { ComputedMonth } from "./types";
 
 export type KpiMetric = {
   name: string;
@@ -28,8 +28,8 @@ function deltaPctPoints(
   return d > 0 ? `+${d.toFixed(1)} pp` : `−${Math.abs(d).toFixed(1)} pp`;
 }
 
-export function buildRevenueGrowthMetrics(m: MonthlyRecord, prev: MonthlyRecord | null): KpiMetric[] {
-  const leadToClose = m.leads > 0 ? m.closedWon / m.leads : 0;
+export function buildRevenueGrowthMetrics(m: ComputedMonth, prev: ComputedMonth | null): KpiMetric[] {
+  const leadToClose = m.leadToCloseRate ?? (m.leads > 0 ? m.closedWon / m.leads : 0);
   return [
     {
       name: "Monthly Recurring Revenue (MRR)",
@@ -89,7 +89,7 @@ export function buildRevenueGrowthMetrics(m: MonthlyRecord, prev: MonthlyRecord 
   ];
 }
 
-export function buildCustomerMetrics(m: MonthlyRecord, prev: MonthlyRecord | null): KpiMetric[] {
+export function buildCustomerMetrics(m: ComputedMonth, prev: ComputedMonth | null): KpiMetric[] {
   return [
     {
       name: "Customer Acquisition Cost (CAC)",
@@ -150,7 +150,7 @@ export function buildCustomerMetrics(m: MonthlyRecord, prev: MonthlyRecord | nul
   ];
 }
 
-export function buildBurnRunwayMetrics(m: MonthlyRecord, prev: MonthlyRecord | null): KpiMetric[] {
+export function buildBurnRunwayMetrics(m: ComputedMonth, prev: ComputedMonth | null): KpiMetric[] {
   return [
     {
       name: "Monthly Net Burn",
@@ -194,7 +194,7 @@ export function buildBurnRunwayMetrics(m: MonthlyRecord, prev: MonthlyRecord | n
   ];
 }
 
-export function buildTeamOpsMetrics(m: MonthlyRecord, prev: MonthlyRecord | null): KpiMetric[] {
+export function buildTeamOpsMetrics(m: ComputedMonth, prev: ComputedMonth | null): KpiMetric[] {
   return [
     {
       name: "Headcount",

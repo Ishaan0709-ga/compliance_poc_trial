@@ -1,18 +1,39 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { ShieldCheck, ArrowRight, Briefcase, Building2, Sparkles, Loader2 } from "lucide-react";
+import {
+  ArrowRight,
+  Briefcase,
+  Building2,
+  CheckCircle2,
+  Sparkles,
+} from "lucide-react";
+import {
+  AuthField,
+  AuthMessage,
+  AuthSubmitButton,
+  AuthTextInput,
+  PasswordInput,
+} from "@/components/auth/AuthField";
+import { AuthBrandPanel, AuthMobileHeader, AuthModeTabs } from "@/components/auth/AuthShell";
 import { supabase } from "@/integrations/supabase/client";
+
+type AuthMode = "signin" | "signup" | "forgot" | "reset";
+
+type LoginSearch = { mode?: string; reset?: string };
 
 export const Route = createFileRoute("/login")({
   head: () => ({
     meta: [
-      { title: "ComplyOS — The Operating System for Startups" },
-      { name: "description", content: "Run your startup on ComplyOS: compliance, finance, and operations in one AI-powered OS for founders, admins and partners." },
-      { property: "og:title", content: "ComplyOS — The Operating System for Startups" },
-      { property: "og:description", content: "Run your startup on ComplyOS: compliance, finance, and operations in one AI-powered OS for founders, admins and partners." },
-      { name: "twitter:title", content: "ComplyOS — The Operating System for Startups" },
-      { name: "twitter:description", content: "Run your startup on ComplyOS: compliance, finance, and operations in one AI-powered OS for founders, admins and partners." },
+      { title: "Sign in — ComplyOS" },
+      {
+        name: "description",
+        content: "Sign in to ComplyOS — Founder, Admin, and Partner portals for compliance and operations.",
+      },
     ],
+  }),
+  validateSearch: (search: Record<string, unknown>): LoginSearch => ({
+    mode: typeof search.mode === "string" ? search.mode : undefined,
+    reset: typeof search.reset === "string" ? search.reset : undefined,
   }),
   component: LoginPage,
 });
@@ -21,10 +42,10 @@ const ROLES = [
   {
     id: "founder",
     label: "Founder",
-    sub: "Startup / MSME owners",
+    sub: "Startup / MSME",
     icon: Sparkles,
     to: "/founder",
-    blurb: "Track orders, manage docs, get AI compliance & finance guidance.",
+    blurb: "Orders, docs, AI compliance & finance.",
   },
   {
     id: "admin",
@@ -32,7 +53,7 @@ const ROLES = [
     sub: "ComplyOS team",
     icon: Building2,
     to: "/admin",
-    blurb: "Operational command centre: orders, partners, CRM, BI.",
+    blurb: "Orders, partners, CRM, BI.",
   },
   {
     id: "partner",
@@ -40,177 +61,392 @@ const ROLES = [
     sub: "CA · CS · Legal",
     icon: Briefcase,
     to: "/partner",
-    blurb: "Receive assignments, submit deliverables, manage payouts.",
+    blurb: "Assignments, deliverables, payouts.",
   },
 ] as const;
 
 function LoginPage() {
   const navigate = useNavigate();
+  const search = Route.useSearch();
   const [role, setRole] = useState<(typeof ROLES)[number]["id"]>("founder");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("demo1234");
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [mode, setMode] = useState<AuthMode>(
+    search.reset === "1" ? "reset" : search.mode === "signup" ? "signup" : "signin"
+  );
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (data.user) {
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session?.user && mode !== "reset") {
         const target = ROLES.find((r) => r.id === role)!.to;
         navigate({ to: target as "/founder" });
       }
     });
+  }, [mode, navigate, role]);
+
+  useEffect(() => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "PASSWORD_RECOVERY") setMode("reset");
+    });
+    return () => sub.subscription.unsubscribe();
   }, []);
 
-  const submit = async (e: React.FormEvent) => {
+  const portal = ROLES.find((r) => r.id === role)!;
+
+  const goToPortal = () => navigate({ to: portal.to as "/founder" });
+
+  const submitSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    setErr(null); setBusy(true);
+    setErr(null);
+    setInfo(null);
+    setBusy(true);
     try {
-      const fn = mode === "signin"
-        ? supabase.auth.signInWithPassword({ email, password })
-        : supabase.auth.signUp({ email, password, options: { emailRedirectTo: `${window.location.origin}/founder` } });
-      const { error } = await fn;
-      if (error) { setErr(error.message); return; }
-      const target = ROLES.find((r) => r.id === role)!.to;
-      navigate({ to: target as "/founder" });
+      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+      if (error) {
+        setErr(error.message);
+        return;
+      }
+      goToPortal();
     } finally {
       setBusy(false);
     }
   };
 
+  const submitSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErr(null);
+    setInfo(null);
+    if (password.length < 8) {
+      setErr("Password must be at least 8 characters.");
+      return;
+    }
+    if (password !== confirmPassword) {
+      setErr("Passwords do not match.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/login?mode=signin`,
+          data: { portal: role },
+        },
+      });
+      if (error) {
+        setErr(error.message);
+        return;
+      }
+      if (data.session) {
+        goToPortal();
+        return;
+      }
+      setInfo("Check your email to confirm your account, then sign in.");
+      setMode("signin");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submitForgot = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErr(null);
+    setInfo(null);
+    setBusy(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+        redirectTo: `${window.location.origin}/login?reset=1`,
+      });
+      if (error) {
+        setErr(error.message);
+        return;
+      }
+      setInfo("Password reset link sent. Check your inbox and spam folder.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submitReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErr(null);
+    setInfo(null);
+    if (newPassword.length < 8) {
+      setErr("Password must be at least 8 characters.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setErr("Passwords do not match.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const { error } = await supabase.auth.updateUser({ password: newPassword });
+      if (error) {
+        setErr(error.message);
+        return;
+      }
+      setInfo("Password updated. Signing you in…");
+      goToPortal();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const titles: Record<AuthMode, { kicker: string; title: string; sub: string }> = {
+    signin: {
+      kicker: "Sign in",
+      title: "Welcome back.",
+      sub: "Choose your portal and enter your credentials.",
+    },
+    signup: {
+      kicker: "Create account",
+      title: "Get started.",
+      sub: "One account per work email. Pick the portal you'll use most.",
+    },
+    forgot: {
+      kicker: "Forgot password",
+      title: "Reset your password.",
+      sub: "We'll email you a secure link to set a new password.",
+    },
+    reset: {
+      kicker: "New password",
+      title: "Choose a new password.",
+      sub: "Must be at least 8 characters.",
+    },
+  };
+
+  const copy = titles[mode];
+
   return (
     <div className="grid min-h-screen md:grid-cols-2">
-      {/* Left: brand panel */}
-      <div className="relative hidden overflow-hidden bg-gradient-onboard text-white md:flex md:flex-col md:justify-between md:p-10">
-        <div className="absolute inset-0 grid-bg pointer-events-none opacity-50" />
-        <div className="relative flex items-center gap-2.5">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary">
-            <ShieldCheck className="h-5 w-5" strokeWidth={2.4} />
-          </div>
-          <span className="text-[20px] font-extrabold tracking-[-0.03em]">
-            Comply<span className="text-[oklch(0.78_0.12_265)]">OS</span>
-          </span>
-        </div>
-        <div className="relative max-w-md">
-          <div className="mb-4 inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/5 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-[oklch(0.82_0.1_265)]">
-            <Sparkles className="h-3 w-3" /> AI Operating System
-          </div>
-          <h1 className="text-[40px] font-extrabold leading-[1.05] tracking-[-0.04em]">
-            The startup operating system for{" "}
+      <AuthBrandPanel
+        badge="Founder · Admin · Partner"
+        title={
+          <>
+            The operating system for{" "}
             <span className="bg-gradient-to-r from-[oklch(0.78_0.12_265)] to-[oklch(0.85_0.15_295)] bg-clip-text text-transparent">
               Indian founders
             </span>
             .
-          </h1>
-          <p className="mt-4 text-[14px] leading-relaxed text-white/65">
-            Three portals — Founder, Admin, Partner — on a unified document, compliance and AI
-            backbone. From Day 0 to Series A.
-          </p>
-        </div>
-        <div className="relative text-[11px] text-white/40">
-          © {new Date().getFullYear()} ComplyOS × Grae AI · Confidential
-        </div>
-      </div>
+          </>
+        }
+        subtitle="Three portals on one compliance, finance, and AI backbone — from Day 0 to Series A."
+      />
 
-      {/* Right: login form */}
-      <div className="flex items-center justify-center bg-background px-6 py-12">
+      <div className="flex items-center justify-center bg-background px-6 py-10 md:py-12">
         <div className="w-full max-w-md">
+          <AuthMobileHeader />
+
           <div className="mb-6">
             <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary">
-              Sign in
+              {copy.kicker}
             </div>
             <h2 className="mt-2 text-[28px] font-extrabold tracking-[-0.03em] text-ink">
-              Welcome back.
+              {copy.title}
             </h2>
-            <p className="mt-1 text-[13px] text-ink-3">
-              Choose your portal and sign in to continue.
-            </p>
+            <p className="mt-1 text-[13px] text-ink-3">{copy.sub}</p>
           </div>
 
-          {/* Role selector */}
-          <div className="mb-5 grid gap-2">
-            {ROLES.map((r) => {
-              const Icon = r.icon;
-              const active = role === r.id;
-              return (
+          {(mode === "signin" || mode === "signup") && (
+            <>
+              <AuthModeTabs
+                value={mode}
+                onChange={(m) => {
+                  setMode(m);
+                  setErr(null);
+                  setInfo(null);
+                }}
+                tabs={[
+                  { id: "signin", label: "Sign in" },
+                  { id: "signup", label: "Sign up" },
+                ]}
+              />
+
+              <div className="mb-5 grid gap-2">
+                {ROLES.map((r) => {
+                  const Icon = r.icon;
+                  const active = role === r.id;
+                  return (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => setRole(r.id)}
+                      className={`flex items-center gap-3 rounded-xl border p-3 text-left transition-all ${
+                        active
+                          ? "border-primary-border bg-primary-muted/60 shadow-sm"
+                          : "border-border bg-white hover:border-primary-border/40 hover:bg-surface-2/50"
+                      }`}
+                    >
+                      <div
+                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
+                          active ? "bg-primary text-primary-foreground" : "bg-surface-2 text-ink-3"
+                        }`}
+                      >
+                        <Icon className="h-5 w-5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                          <span className="text-[14px] font-extrabold text-ink">{r.label}</span>
+                          <span className="text-[11px] text-ink-4">· {r.sub}</span>
+                        </div>
+                        <p className="text-[12px] text-ink-3">{r.blurb}</p>
+                      </div>
+                      {active && <CheckCircle2 className="h-4 w-4 shrink-0 text-primary" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {mode === "signin" && (
+            <form onSubmit={submitSignIn} className="space-y-4">
+              <AuthField label="Work email">
+                <AuthTextInput
+                  type="email"
+                  value={email}
+                  onChange={setEmail}
+                  placeholder="you@company.in"
+                  autoComplete="email"
+                  required
+                />
+              </AuthField>
+              <AuthField label="Password">
+                <PasswordInput value={password} onChange={setPassword} autoComplete="current-password" required />
+              </AuthField>
+              <div className="flex justify-end">
                 <button
-                  key={r.id}
                   type="button"
-                  onClick={() => setRole(r.id)}
-                  className={`flex items-center gap-3 rounded-xl border p-3 text-left transition-all ${
-                    active
-                      ? "border-primary-border bg-primary-muted shadow-card"
-                      : "border-border bg-surface hover:border-primary-border/50 hover:bg-surface-2"
-                  }`}
+                  onClick={() => {
+                    setMode("forgot");
+                    setErr(null);
+                    setInfo(null);
+                  }}
+                  className="text-[12px] font-semibold text-primary hover:underline"
                 >
-                  <div
-                    className={`flex h-10 w-10 items-center justify-center rounded-lg ${
-                      active ? "bg-primary text-primary-foreground" : "bg-surface-2 text-ink-3"
-                    }`}
-                  >
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <div className="text-[14px] font-extrabold text-ink">{r.label}</div>
-                      <div className="text-[11px] text-ink-4">· {r.sub}</div>
-                    </div>
-                    <div className="text-[12px] text-ink-3">{r.blurb}</div>
-                  </div>
+                  Forgot password?
                 </button>
-              );
-            })}
-          </div>
+              </div>
+              {err && <AuthMessage tone="error">{err}</AuthMessage>}
+              {info && <AuthMessage tone="info">{info}</AuthMessage>}
+              <AuthSubmitButton busy={busy}>
+                Sign in · {portal.label}
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+              </AuthSubmitButton>
+            </form>
+          )}
 
-          <form onSubmit={submit} className="space-y-3">
-            <div>
-              <label className="mb-1 block text-[12px] font-bold text-ink-2">Work email</label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@company.in"
-                className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[14px] outline-none focus:border-primary focus:ring-2 focus:ring-primary-muted"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-[12px] font-bold text-ink-2">Password</label>
-              <input
-                type="password"
-                required
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-lg border border-border bg-surface px-3 py-2.5 text-[14px] outline-none focus:border-primary focus:ring-2 focus:ring-primary-muted"
-              />
-            </div>
-            {err && <div className="text-[12px] text-destructive">{err}</div>}
-            <button
-              type="submit"
-              disabled={busy}
-              className="group mt-2 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-3 text-[14px] font-bold text-primary-foreground transition-all hover:bg-primary/90 disabled:opacity-60"
-            >
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {mode === "signin" ? "Sign in" : "Create account"} · {ROLES.find((r) => r.id === role)!.label}
-              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode(mode === "signin" ? "signup" : "signin")}
-              className="w-full text-center text-[12px] text-ink-3 hover:text-ink"
-            >
-              {mode === "signin" ? "Need an account? Sign up" : "Have an account? Sign in"}
-            </button>
-          </form>
+          {mode === "signup" && (
+            <form onSubmit={submitSignUp} className="space-y-4">
+              <AuthField label="Work email" hint="Use your company email for portal access.">
+                <AuthTextInput
+                  type="email"
+                  value={email}
+                  onChange={setEmail}
+                  placeholder="you@company.in"
+                  autoComplete="email"
+                  required
+                />
+              </AuthField>
+              <AuthField label="Password" hint="Minimum 8 characters.">
+                <PasswordInput
+                  value={password}
+                  onChange={setPassword}
+                  autoComplete="new-password"
+                  required
+                  minLength={8}
+                />
+              </AuthField>
+              <AuthField label="Confirm password">
+                <PasswordInput
+                  value={confirmPassword}
+                  onChange={setConfirmPassword}
+                  autoComplete="new-password"
+                  required
+                  minLength={8}
+                />
+              </AuthField>
+              {err && <AuthMessage tone="error">{err}</AuthMessage>}
+              {info && <AuthMessage tone="success">{info}</AuthMessage>}
+              <AuthSubmitButton busy={busy}>
+                Create account · {portal.label}
+                <ArrowRight className="h-4 w-4" />
+              </AuthSubmitButton>
+            </form>
+          )}
 
-          <div className="mt-6 flex items-center justify-between text-[12px] text-ink-4">
-            <Link to="/" className="hover:text-ink-2">
+          {mode === "forgot" && (
+            <form onSubmit={submitForgot} className="space-y-4">
+              <AuthField
+                label="Work email"
+                hint="Enter the email you used to register. We'll send a reset link."
+              >
+                <AuthTextInput
+                  type="email"
+                  value={email}
+                  onChange={setEmail}
+                  placeholder="you@company.in"
+                  autoComplete="email"
+                  required
+                />
+              </AuthField>
+              {err && <AuthMessage tone="error">{err}</AuthMessage>}
+              {info && <AuthMessage tone="success">{info}</AuthMessage>}
+              <AuthSubmitButton busy={busy}>Send reset link</AuthSubmitButton>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("signin");
+                  setErr(null);
+                  setInfo(null);
+                }}
+                className="w-full text-center text-[13px] font-medium text-ink-3 hover:text-ink"
+              >
+                ← Back to sign in
+              </button>
+            </form>
+          )}
+
+          {mode === "reset" && (
+            <form onSubmit={submitReset} className="space-y-4">
+              <AuthField label="New password" hint="Minimum 8 characters.">
+                <PasswordInput
+                  value={newPassword}
+                  onChange={setNewPassword}
+                  autoComplete="new-password"
+                  required
+                  minLength={8}
+                />
+              </AuthField>
+              <AuthField label="Confirm new password">
+                <PasswordInput
+                  value={confirmPassword}
+                  onChange={setConfirmPassword}
+                  autoComplete="new-password"
+                  required
+                  minLength={8}
+                />
+              </AuthField>
+              {err && <AuthMessage tone="error">{err}</AuthMessage>}
+              {info && <AuthMessage tone="success">{info}</AuthMessage>}
+              <AuthSubmitButton busy={busy}>Update password</AuthSubmitButton>
+            </form>
+          )}
+
+          <div className="mt-8 flex flex-col gap-3 border-t border-border pt-6 text-[12px] text-ink-4 sm:flex-row sm:items-center sm:justify-between">
+            <Link to="/" className="font-medium hover:text-ink-2">
               ← Back to home
             </Link>
-            <a href="#" className="hover:text-ink-2">
-              Forgot password?
-            </a>
+            <Link to="/it-service/login" className="font-medium text-primary hover:underline">
+              IT Service portal →
+            </Link>
           </div>
         </div>
       </div>

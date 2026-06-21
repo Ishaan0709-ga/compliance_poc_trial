@@ -83,7 +83,7 @@ export async function signInWithPhonePin(
 ): Promise<{
   user: import("@supabase/supabase-js").User | null;
   error: string | null;
-  needsSignup?: boolean;
+  wrongPin?: boolean;
 }> {
   const normalized = normalizeIndianPhone(phone);
   const email = phoneToAuthEmail(normalized);
@@ -102,7 +102,11 @@ export async function signInWithPhonePin(
     signInErr?.message?.toLowerCase().includes("invalid credentials");
 
   if (invalidCreds) {
-    return { user: null, error: null, needsSignup: true };
+    return {
+      user: null,
+      error: "Incorrect PIN. Check your PIN or reset it below.",
+      wrongPin: true,
+    };
   }
 
   return { user: null, error: signInErr?.message ?? "Sign in failed" };
@@ -126,7 +130,17 @@ export async function registerWithPhonePin(
     },
   });
 
-  if (signUpErr) return { user: null, error: signUpErr.message };
+  if (signUpErr) {
+    const already =
+      signUpErr.message.toLowerCase().includes("already registered") ||
+      signUpErr.message.toLowerCase().includes("already been registered");
+    return {
+      user: null,
+      error: already
+        ? "This number is already registered. Sign in instead."
+        : signUpErr.message,
+    };
+  }
 
   if (signUpData.session?.user) {
     return { user: signUpData.session.user, error: null };
@@ -145,7 +159,7 @@ export async function registerWithPhonePin(
 
 /**
  * Sign in with mobile + 6-digit PIN (no SMS provider required).
- * First visit registers the number; return visits verify the same PIN.
+ * @deprecated Prefer explicit sign-in / sign-up flows in the login UI.
  */
 export async function signInOrRegisterWithPhonePin(
   phone: string,
@@ -153,7 +167,6 @@ export async function signInOrRegisterWithPhonePin(
 ): Promise<{ user: import("@supabase/supabase-js").User | null; error: string | null }> {
   const signIn = await signInWithPhonePin(phone, pin);
   if (signIn.user) return { user: signIn.user, error: null };
-  if (!signIn.needsSignup) return { user: null, error: signIn.error };
   return registerWithPhonePin(phone, pin);
 }
 

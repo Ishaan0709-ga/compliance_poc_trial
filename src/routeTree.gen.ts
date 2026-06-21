@@ -47,8 +47,6 @@ import { Route as FounderVaultRouteImport } from './routes/founder/vault'
 import { Route as FounderRegulatoryRouteImport } from './routes/founder/regulatory'
 import { Route as FounderProfileRouteImport } from './routes/founder/profile'
 import { Route as FounderPayrollRouteImport } from './routes/founder/payroll'
-import { Route as FounderOrdersRouteImport } from './routes/founder/orders'
-import { Route as FounderMarketplaceRouteImport } from './routes/founder/marketplace'
 import { Route as FounderKpisRouteImport } from './routes/founder/kpis'
 import { Route as FounderDataCenterRouteImport } from './routes/founder/data-center'
 import { Route as FounderCalendarRouteImport } from './routes/founder/calendar'
@@ -60,7 +58,10 @@ import { Route as AdminIntakeRouteImport } from './routes/admin/intake'
 import { Route as AdminCustomersRouteImport } from './routes/admin/customers'
 import { Route as AdminCatalogueRouteImport } from './routes/admin/catalogue'
 import { Route as AdminBiRouteImport } from './routes/admin/bi'
+import { Route as FounderOrdersIndexRouteImport } from './routes/founder/orders.index'
+import { Route as FounderMarketplaceIndexRouteImport } from './routes/founder/marketplace.index'
 import { Route as FounderBooksIndexRouteImport } from './routes/founder/books.index'
+import { Route as FounderOrdersOrderIdRouteImport } from './routes/founder/orders_.$orderId'
 import { Route as FounderBooksReportsRouteImport } from './routes/founder/books.reports'
 import { Route as FounderBooksInvoicesRouteImport } from './routes/founder/books.invoices'
 import { Route as FounderBooksExpensesRouteImport } from './routes/founder/books.expenses'
@@ -69,6 +70,7 @@ import { Route as FounderBooksBankingRouteImport } from './routes/founder/books.
 import { Route as FounderAiGrowthRouteImport } from './routes/founder/ai.growth'
 import { Route as FounderAiFinanceRouteImport } from './routes/founder/ai.finance'
 import { Route as FounderAiComplianceRouteImport } from './routes/founder/ai.compliance'
+import { Route as FounderMarketplaceOrderServiceIdRouteImport } from './routes/founder/marketplace_.order.$serviceId'
 import { Route as ApiPublicZohoCallbackRouteImport } from './routes/api/public/zoho/callback'
 
 const MsmeRoute = MsmeRouteImport.update({
@@ -261,16 +263,6 @@ const FounderPayrollRoute = FounderPayrollRouteImport.update({
   path: '/founder/payroll',
   getParentRoute: () => rootRouteImport,
 } as any)
-const FounderOrdersRoute = FounderOrdersRouteImport.update({
-  id: '/founder/orders',
-  path: '/founder/orders',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const FounderMarketplaceRoute = FounderMarketplaceRouteImport.update({
-  id: '/founder/marketplace',
-  path: '/founder/marketplace',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const FounderKpisRoute = FounderKpisRouteImport.update({
   id: '/founder/kpis',
   path: '/founder/kpis',
@@ -326,9 +318,24 @@ const AdminBiRoute = AdminBiRouteImport.update({
   path: '/admin/bi',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FounderOrdersIndexRoute = FounderOrdersIndexRouteImport.update({
+  id: '/founder/orders/',
+  path: '/founder/orders/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FounderMarketplaceIndexRoute = FounderMarketplaceIndexRouteImport.update({
+  id: '/founder/marketplace/',
+  path: '/founder/marketplace/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FounderBooksIndexRoute = FounderBooksIndexRouteImport.update({
   id: '/founder/books/',
   path: '/founder/books/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FounderOrdersOrderIdRoute = FounderOrdersOrderIdRouteImport.update({
+  id: '/founder/orders_/$orderId',
+  path: '/founder/orders/$orderId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FounderBooksReportsRoute = FounderBooksReportsRouteImport.update({
@@ -371,6 +378,12 @@ const FounderAiComplianceRoute = FounderAiComplianceRouteImport.update({
   path: '/founder/ai/compliance',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FounderMarketplaceOrderServiceIdRoute =
+  FounderMarketplaceOrderServiceIdRouteImport.update({
+    id: '/founder/marketplace_/order/$serviceId',
+    path: '/founder/marketplace/order/$serviceId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicZohoCallbackRoute = ApiPublicZohoCallbackRouteImport.update({
   id: '/api/public/zoho/callback',
   path: '/api/public/zoho/callback',
@@ -397,8 +410,6 @@ export interface FileRoutesByFullPath {
   '/founder/calendar': typeof FounderCalendarRoute
   '/founder/data-center': typeof FounderDataCenterRoute
   '/founder/kpis': typeof FounderKpisRoute
-  '/founder/marketplace': typeof FounderMarketplaceRoute
-  '/founder/orders': typeof FounderOrdersRoute
   '/founder/payroll': typeof FounderPayrollRoute
   '/founder/profile': typeof FounderProfileRoute
   '/founder/regulatory': typeof FounderRegulatoryRoute
@@ -437,8 +448,12 @@ export interface FileRoutesByFullPath {
   '/founder/books/expenses': typeof FounderBooksExpensesRoute
   '/founder/books/invoices': typeof FounderBooksInvoicesRoute
   '/founder/books/reports': typeof FounderBooksReportsRoute
+  '/founder/orders/$orderId': typeof FounderOrdersOrderIdRoute
   '/founder/books/': typeof FounderBooksIndexRoute
+  '/founder/marketplace/': typeof FounderMarketplaceIndexRoute
+  '/founder/orders/': typeof FounderOrdersIndexRoute
   '/api/public/zoho/callback': typeof ApiPublicZohoCallbackRoute
+  '/founder/marketplace/order/$serviceId': typeof FounderMarketplaceOrderServiceIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -460,8 +475,6 @@ export interface FileRoutesByTo {
   '/founder/calendar': typeof FounderCalendarRoute
   '/founder/data-center': typeof FounderDataCenterRoute
   '/founder/kpis': typeof FounderKpisRoute
-  '/founder/marketplace': typeof FounderMarketplaceRoute
-  '/founder/orders': typeof FounderOrdersRoute
   '/founder/payroll': typeof FounderPayrollRoute
   '/founder/profile': typeof FounderProfileRoute
   '/founder/regulatory': typeof FounderRegulatoryRoute
@@ -500,8 +513,12 @@ export interface FileRoutesByTo {
   '/founder/books/expenses': typeof FounderBooksExpensesRoute
   '/founder/books/invoices': typeof FounderBooksInvoicesRoute
   '/founder/books/reports': typeof FounderBooksReportsRoute
+  '/founder/orders/$orderId': typeof FounderOrdersOrderIdRoute
   '/founder/books': typeof FounderBooksIndexRoute
+  '/founder/marketplace': typeof FounderMarketplaceIndexRoute
+  '/founder/orders': typeof FounderOrdersIndexRoute
   '/api/public/zoho/callback': typeof ApiPublicZohoCallbackRoute
+  '/founder/marketplace/order/$serviceId': typeof FounderMarketplaceOrderServiceIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -524,8 +541,6 @@ export interface FileRoutesById {
   '/founder/calendar': typeof FounderCalendarRoute
   '/founder/data-center': typeof FounderDataCenterRoute
   '/founder/kpis': typeof FounderKpisRoute
-  '/founder/marketplace': typeof FounderMarketplaceRoute
-  '/founder/orders': typeof FounderOrdersRoute
   '/founder/payroll': typeof FounderPayrollRoute
   '/founder/profile': typeof FounderProfileRoute
   '/founder/regulatory': typeof FounderRegulatoryRoute
@@ -564,8 +579,12 @@ export interface FileRoutesById {
   '/founder/books/expenses': typeof FounderBooksExpensesRoute
   '/founder/books/invoices': typeof FounderBooksInvoicesRoute
   '/founder/books/reports': typeof FounderBooksReportsRoute
+  '/founder/orders_/$orderId': typeof FounderOrdersOrderIdRoute
   '/founder/books/': typeof FounderBooksIndexRoute
+  '/founder/marketplace/': typeof FounderMarketplaceIndexRoute
+  '/founder/orders/': typeof FounderOrdersIndexRoute
   '/api/public/zoho/callback': typeof ApiPublicZohoCallbackRoute
+  '/founder/marketplace_/order/$serviceId': typeof FounderMarketplaceOrderServiceIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -589,8 +608,6 @@ export interface FileRouteTypes {
     | '/founder/calendar'
     | '/founder/data-center'
     | '/founder/kpis'
-    | '/founder/marketplace'
-    | '/founder/orders'
     | '/founder/payroll'
     | '/founder/profile'
     | '/founder/regulatory'
@@ -629,8 +646,12 @@ export interface FileRouteTypes {
     | '/founder/books/expenses'
     | '/founder/books/invoices'
     | '/founder/books/reports'
+    | '/founder/orders/$orderId'
     | '/founder/books/'
+    | '/founder/marketplace/'
+    | '/founder/orders/'
     | '/api/public/zoho/callback'
+    | '/founder/marketplace/order/$serviceId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -652,8 +673,6 @@ export interface FileRouteTypes {
     | '/founder/calendar'
     | '/founder/data-center'
     | '/founder/kpis'
-    | '/founder/marketplace'
-    | '/founder/orders'
     | '/founder/payroll'
     | '/founder/profile'
     | '/founder/regulatory'
@@ -692,8 +711,12 @@ export interface FileRouteTypes {
     | '/founder/books/expenses'
     | '/founder/books/invoices'
     | '/founder/books/reports'
+    | '/founder/orders/$orderId'
     | '/founder/books'
+    | '/founder/marketplace'
+    | '/founder/orders'
     | '/api/public/zoho/callback'
+    | '/founder/marketplace/order/$serviceId'
   id:
     | '__root__'
     | '/'
@@ -715,8 +738,6 @@ export interface FileRouteTypes {
     | '/founder/calendar'
     | '/founder/data-center'
     | '/founder/kpis'
-    | '/founder/marketplace'
-    | '/founder/orders'
     | '/founder/payroll'
     | '/founder/profile'
     | '/founder/regulatory'
@@ -755,8 +776,12 @@ export interface FileRouteTypes {
     | '/founder/books/expenses'
     | '/founder/books/invoices'
     | '/founder/books/reports'
+    | '/founder/orders_/$orderId'
     | '/founder/books/'
+    | '/founder/marketplace/'
+    | '/founder/orders/'
     | '/api/public/zoho/callback'
+    | '/founder/marketplace_/order/$serviceId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -779,8 +804,6 @@ export interface RootRouteChildren {
   FounderCalendarRoute: typeof FounderCalendarRoute
   FounderDataCenterRoute: typeof FounderDataCenterRoute
   FounderKpisRoute: typeof FounderKpisRoute
-  FounderMarketplaceRoute: typeof FounderMarketplaceRoute
-  FounderOrdersRoute: typeof FounderOrdersRoute
   FounderPayrollRoute: typeof FounderPayrollRoute
   FounderProfileRoute: typeof FounderProfileRoute
   FounderRegulatoryRoute: typeof FounderRegulatoryRoute
@@ -802,8 +825,12 @@ export interface RootRouteChildren {
   FounderBooksExpensesRoute: typeof FounderBooksExpensesRoute
   FounderBooksInvoicesRoute: typeof FounderBooksInvoicesRoute
   FounderBooksReportsRoute: typeof FounderBooksReportsRoute
+  FounderOrdersOrderIdRoute: typeof FounderOrdersOrderIdRoute
   FounderBooksIndexRoute: typeof FounderBooksIndexRoute
+  FounderMarketplaceIndexRoute: typeof FounderMarketplaceIndexRoute
+  FounderOrdersIndexRoute: typeof FounderOrdersIndexRoute
   ApiPublicZohoCallbackRoute: typeof ApiPublicZohoCallbackRoute
+  FounderMarketplaceOrderServiceIdRoute: typeof FounderMarketplaceOrderServiceIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -1074,20 +1101,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FounderPayrollRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/founder/orders': {
-      id: '/founder/orders'
-      path: '/founder/orders'
-      fullPath: '/founder/orders'
-      preLoaderRoute: typeof FounderOrdersRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/founder/marketplace': {
-      id: '/founder/marketplace'
-      path: '/founder/marketplace'
-      fullPath: '/founder/marketplace'
-      preLoaderRoute: typeof FounderMarketplaceRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/founder/kpis': {
       id: '/founder/kpis'
       path: '/founder/kpis'
@@ -1165,11 +1178,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminBiRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/founder/orders/': {
+      id: '/founder/orders/'
+      path: '/founder/orders'
+      fullPath: '/founder/orders/'
+      preLoaderRoute: typeof FounderOrdersIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/founder/marketplace/': {
+      id: '/founder/marketplace/'
+      path: '/founder/marketplace'
+      fullPath: '/founder/marketplace/'
+      preLoaderRoute: typeof FounderMarketplaceIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/founder/books/': {
       id: '/founder/books/'
       path: '/founder/books'
       fullPath: '/founder/books/'
       preLoaderRoute: typeof FounderBooksIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/founder/orders_/$orderId': {
+      id: '/founder/orders_/$orderId'
+      path: '/founder/orders/$orderId'
+      fullPath: '/founder/orders/$orderId'
+      preLoaderRoute: typeof FounderOrdersOrderIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/founder/books/reports': {
@@ -1226,6 +1260,13 @@ declare module '@tanstack/react-router' {
       path: '/founder/ai/compliance'
       fullPath: '/founder/ai/compliance'
       preLoaderRoute: typeof FounderAiComplianceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/founder/marketplace_/order/$serviceId': {
+      id: '/founder/marketplace_/order/$serviceId'
+      path: '/founder/marketplace/order/$serviceId'
+      fullPath: '/founder/marketplace/order/$serviceId'
+      preLoaderRoute: typeof FounderMarketplaceOrderServiceIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/zoho/callback': {
@@ -1302,8 +1343,6 @@ const rootRouteChildren: RootRouteChildren = {
   FounderCalendarRoute: FounderCalendarRoute,
   FounderDataCenterRoute: FounderDataCenterRoute,
   FounderKpisRoute: FounderKpisRoute,
-  FounderMarketplaceRoute: FounderMarketplaceRoute,
-  FounderOrdersRoute: FounderOrdersRoute,
   FounderPayrollRoute: FounderPayrollRoute,
   FounderProfileRoute: FounderProfileRoute,
   FounderRegulatoryRoute: FounderRegulatoryRoute,
@@ -1325,8 +1364,12 @@ const rootRouteChildren: RootRouteChildren = {
   FounderBooksExpensesRoute: FounderBooksExpensesRoute,
   FounderBooksInvoicesRoute: FounderBooksInvoicesRoute,
   FounderBooksReportsRoute: FounderBooksReportsRoute,
+  FounderOrdersOrderIdRoute: FounderOrdersOrderIdRoute,
   FounderBooksIndexRoute: FounderBooksIndexRoute,
+  FounderMarketplaceIndexRoute: FounderMarketplaceIndexRoute,
+  FounderOrdersIndexRoute: FounderOrdersIndexRoute,
   ApiPublicZohoCallbackRoute: ApiPublicZohoCallbackRoute,
+  FounderMarketplaceOrderServiceIdRoute: FounderMarketplaceOrderServiceIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -1,52 +1,79 @@
 import * as XLSX from "xlsx";
-import type { FounderAnalyticsState, MonthlyRecord } from "./types";
+import type { FounderAnalyticsState, RawMonthlyInput } from "./types";
+import { MONTH_HEADERS } from "./types";
 import { getDefaultFounderAnalyticsState } from "./seed-data";
 
-const MONTH_HEADERS = [
-  "Jan-26",
-  "Feb-26",
-  "Mar-26",
-  "Apr-26",
-  "May-26",
-  "Jun-26",
-  "Jul-26",
-  "Aug-26",
-  "Sep-26",
-  "Oct-26",
-  "Nov-26",
-  "Dec-26",
+const RAW_INPUT_LABELS: { label: string; key: keyof RawMonthlyInput }[] = [
+  { label: "Active subscriptions (count, end of month)", key: "activeSubscriptions" },
+  { label: "Monthly Subscription Cost", key: "monthlySubscriptionCost" },
+  { label: "New subscriptions started this month (count)", key: "newSubscriptionsStarted" },
+  { label: "Subscriptions downgraded this month — MRR lost (Rs)", key: "subscriptionsDowngradedMrrLost" },
+  { label: "Subscriptions cancelled this month (count)", key: "subscriptionsCancelled" },
+  { label: "Total operating expenses this month (Rs) — from P&L", key: "totalOperatingExpenses" },
+  { label: "Cash & bank balance, end of month (Rs) — from Balance Sheet", key: "cashAndBankBalance" },
+  { label: "Total active customers, end of month (count)", key: "totalActiveCustomers" },
+  { label: "New customers acquired this month (count)", key: "newCustomersAcquired" },
+  { label: "Customers churned this month (count)", key: "customersChurned" },
+  { label: "Sales & marketing spend this month (Rs)", key: "salesMarketingSpend" },
+  { label: "Leads generated this month (count)", key: "leadsGenerated" },
+  { label: "Leads qualified this month (count)", key: "leadsQualified" },
+  { label: "Demos completed this month (count)", key: "demosCompleted" },
+  { label: "Deals closed-won this month (count)", key: "dealsClosedWon" },
+  { label: "NPS score this month (survey tool, -100 to 100)", key: "npsScore" },
+  { label: "Headcount, end of month", key: "headcount" },
+  { label: "Employees exited this month (count)", key: "employeesExited" },
+  { label: "Open roles (count)", key: "openRoles" },
 ];
 
-function num(v: unknown): number {
+function num(v: unknown): number | null {
   if (typeof v === "number" && !Number.isNaN(v)) return v;
   if (typeof v === "string" && v.trim() && v !== "n/a") {
-    const n = Number(v.replace(/,/g, ""));
-    return Number.isNaN(n) ? 0 : n;
+    const n = Number(v.replace(/,/g, "").replace(/%/g, ""));
+    return Number.isNaN(n) ? null : n;
   }
-  return 0;
+  return null;
 }
 
-function readRawSheet(wb: XLSX.WorkBook): Partial<Record<string, number[]>> {
+function readRawSheet(wb: XLSX.WorkBook): Partial<Record<string, (number | null)[]>> {
   const sheet = wb.Sheets["Raw Data Input"];
   if (!sheet) return {};
-  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
-  const map: Partial<Record<string, number[]>> = {};
+  const range = XLSX.utils.decode_range(sheet["!ref"] ?? "A1");
+  const map: Partial<Record<string, (number | null)[]>> = {};
 
-  for (const row of rows) {
-    const label = String(Object.values(row)[0] ?? "").trim();
-    if (!label || label === "Month") continue;
-    const values: number[] = [];
-    for (let i = 0; i < MONTH_HEADERS.length; i++) {
-      const key = i === 0 ? "__EMPTY" : `__EMPTY_${i}`;
-      values.push(num(row[key]));
+  for (let r = range.s.r; r <= range.e.r; r++) {
+    const labelCell = sheet[XLSX.utils.encode_cell({ r, c: 1 })];
+    const label = String(labelCell?.v ?? "").trim();
+    if (!label || label === "Month" || label.startsWith("REVENUE") || label.startsWith("P&L") || label.startsWith("CUSTOMERS") || label.startsWith("TEAM")) continue;
+
+    const values: (number | null)[] = [];
+    for (let c = 2; c <= 13; c++) {
+      const cell = sheet[XLSX.utils.encode_cell({ r, c })];
+      if (!cell) {
+        values.push(null);
+        continue;
+      }
+      if (cell.f) {
+        values.push(null);
+      } else {
+        values.push(num(cell.v));
+      }
     }
     map[label] = values;
   }
+
+  const gmSheet = wb.Sheets["Customer Metrics"];
+  if (gmSheet) {
+    const gmCell = gmSheet["C6"];
+    if (gmCell?.v != null) {
+      map["Gross margin assumption (%) — used in LTV calc"] = Array(12).fill(num(gmCell.v));
+    }
+  }
+
   return map;
 }
 
-function pick(map: Partial<Record<string, number[]>>, label: string, i: number): number {
-  return map[label]?.[i] ?? 0;
+function pick(map: Partial<Record<string, (number | null)[]>>, label: string, i: number, fallback: number | null): number | null {
+  return map[label]?.[i] ?? fallback;
 }
 
 export async function importFounderExcel(file: File): Promise<FounderAnalyticsState> {
@@ -55,51 +82,32 @@ export async function importFounderExcel(file: File): Promise<FounderAnalyticsSt
   const raw = readRawSheet(wb);
   const base = getDefaultFounderAnalyticsState();
 
-  const months: MonthlyRecord[] = MONTH_HEADERS.map((month, i) => {
-    const mrr = pick(raw, "Total monthly-normalized invoice value of active subs (Rs)", i);
+  const months: RawMonthlyInput[] = MONTH_HEADERS.map((month, i) => {
     const prev = base.months[i];
-    const arr = mrr * 12;
-    const revenue = pick(raw, "Total revenue recognized this month (Rs) — from P&L Operating Income", i);
-    const opex = pick(raw, "Total operating expenses this month (Rs) — from P&L", i);
-    const netBurn = opex - revenue;
-    const cashBalance = pick(raw, "Cash & bank balance, end of month (Rs) — from Balance Sheet", i);
-    const headcount = pick(raw, "Headcount, end of month", i) || prev.headcount;
+    const gm = pick(raw, "Gross margin assumption (%) — used in LTV calc", i, prev.grossMarginAssumption) ?? 0.8;
 
     return {
-      ...prev,
       month,
-      mrr,
-      arr,
-      revenue,
-      opex,
-      netBurn,
-      cashBalance,
-      activeCustomers: pick(raw, "Total active customers, end of month (count)", i) || prev.activeCustomers,
-      newCustomers: pick(raw, "New customers acquired this month (count)", i),
-      churnedCustomers: pick(raw, "Customers churned this month (count)", i),
-      nps: pick(raw, "NPS score this month (survey tool, -100 to 100)", i) || prev.nps,
-      headcount,
-      openRoles: pick(raw, "Open roles (count)", i) || prev.openRoles,
-      leads: pick(raw, "Leads generated this month (count)", i),
-      qualified: pick(raw, "Leads qualified this month (count)", i),
-      demos: pick(raw, "Demos completed this month (count)", i),
-      closedWon: pick(raw, "Deals closed-won this month (count)", i),
-      revenuePerEmployee: headcount > 0 ? Math.round(revenue / headcount) : prev.revenuePerEmployee,
-      mrrGrowthMom:
-        i > 0 && prev.mrr > 0
-          ? (mrr - base.months[i - 1].mrr) / base.months[i - 1].mrr
-          : null,
-      netNewMrr: prev.netNewMrr,
-      arpu: prev.arpu,
-      mrrQuickRatio: prev.mrrQuickRatio,
-      cac: prev.cac,
-      ltv: prev.ltv,
-      ltvCacRatio: prev.ltvCacRatio,
-      logoChurnRate: prev.logoChurnRate,
-      nrr: prev.nrr,
-      runwayMonths: prev.runwayMonths,
-      burnMultiple: prev.burnMultiple,
-      attritionRate: prev.attritionRate,
+      activeSubscriptions: pick(raw, "Active subscriptions (count, end of month)", i, prev.activeSubscriptions) ?? prev.activeSubscriptions,
+      monthlySubscriptionCost: pick(raw, "Monthly Subscription Cost", i, prev.monthlySubscriptionCost) ?? prev.monthlySubscriptionCost,
+      newSubscriptionsStarted: pick(raw, "New subscriptions started this month (count)", i, prev.newSubscriptionsStarted) ?? prev.newSubscriptionsStarted,
+      subscriptionsDowngradedMrrLost: pick(raw, "Subscriptions downgraded this month — MRR lost (Rs)", i, prev.subscriptionsDowngradedMrrLost) ?? prev.subscriptionsDowngradedMrrLost,
+      subscriptionsCancelled: pick(raw, "Subscriptions cancelled this month (count)", i, prev.subscriptionsCancelled) ?? prev.subscriptionsCancelled,
+      totalOperatingExpenses: pick(raw, "Total operating expenses this month (Rs) — from P&L", i, prev.totalOperatingExpenses) ?? prev.totalOperatingExpenses,
+      cashAndBankBalance: pick(raw, "Cash & bank balance, end of month (Rs) — from Balance Sheet", i, prev.cashAndBankBalance) ?? prev.cashAndBankBalance,
+      totalActiveCustomers: i < 2 ? pick(raw, "Total active customers, end of month (count)", i, prev.totalActiveCustomers) : null,
+      newCustomersAcquired: i < 2 ? pick(raw, "New customers acquired this month (count)", i, prev.newCustomersAcquired) : null,
+      customersChurned: i < 2 ? pick(raw, "Customers churned this month (count)", i, prev.customersChurned) : null,
+      salesMarketingSpend: pick(raw, "Sales & marketing spend this month (Rs)", i, prev.salesMarketingSpend) ?? prev.salesMarketingSpend,
+      leadsGenerated: pick(raw, "Leads generated this month (count)", i, prev.leadsGenerated) ?? prev.leadsGenerated,
+      leadsQualified: pick(raw, "Leads qualified this month (count)", i, prev.leadsQualified) ?? prev.leadsQualified,
+      demosCompleted: pick(raw, "Demos completed this month (count)", i, prev.demosCompleted) ?? prev.demosCompleted,
+      dealsClosedWon: pick(raw, "Deals closed-won this month (count)", i, prev.dealsClosedWon) ?? prev.dealsClosedWon,
+      npsScore: pick(raw, "NPS score this month (survey tool, -100 to 100)", i, prev.npsScore) ?? prev.npsScore,
+      headcount: pick(raw, "Headcount, end of month", i, prev.headcount) ?? prev.headcount,
+      employeesExited: pick(raw, "Employees exited this month (count)", i, prev.employeesExited) ?? prev.employeesExited,
+      openRoles: pick(raw, "Open roles (count)", i, prev.openRoles) ?? prev.openRoles,
+      grossMarginAssumption: gm,
     };
   });
 
@@ -111,23 +119,16 @@ export async function importFounderExcel(file: File): Promise<FounderAnalyticsSt
 }
 
 export function exportFounderExcel(state: FounderAnalyticsState): void {
-  const rows = state.months.map((m) => ({
-    Month: m.month,
-    MRR: m.mrr,
-    ARR: m.arr,
-    Customers: m.activeCustomers,
-    "Net Burn": m.netBurn,
-    "Cash Balance": m.cashBalance,
-    Runway: m.runwayMonths,
-    Headcount: m.headcount,
-    NPS: m.nps,
-    CAC: m.cac,
-    LTV: m.ltv,
-    Leads: m.leads,
-    "Closed Won": m.closedWon,
-  }));
-  const ws = XLSX.utils.json_to_sheet(rows);
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Founder Metrics");
+  const header = ["Parameter", ...MONTH_HEADERS];
+  const dataRows = RAW_INPUT_LABELS.map(({ label, key }) => [
+    label,
+    ...state.months.map((m) => {
+      const v = m[key];
+      return v ?? "";
+    }),
+  ]);
+  const ws = XLSX.utils.aoa_to_sheet([header, ...dataRows]);
+  XLSX.utils.book_append_sheet(wb, ws, "Raw Data Input");
   XLSX.writeFile(wb, `complyos-founder-metrics-${state.reportingMonth}.xlsx`);
 }

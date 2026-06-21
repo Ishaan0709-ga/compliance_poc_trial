@@ -1,6 +1,7 @@
-import type { DashboardSnapshot, FounderAnalyticsState, MonthlyRecord, PeriodFilter } from "./types";
+import type { DashboardSnapshot, FounderAnalyticsState, MonthHeader, PeriodFilter } from "./types";
+import { computeAllMonths } from "./formulas";
 
-export function monthIndex(state: FounderAnalyticsState, month?: string): number {
+export function monthIndex(state: FounderAnalyticsState, month?: MonthHeader): number {
   const target = month ?? state.reportingMonth;
   const idx = state.months.findIndex((m) => m.month === target);
   return idx >= 0 ? idx : state.months.length - 1;
@@ -10,17 +11,18 @@ export function getSnapshot(
   state: FounderAnalyticsState,
   period: PeriodFilter = "YTD"
 ): DashboardSnapshot {
+  const computed = computeAllMonths(state.months);
   const idx = monthIndex(state);
-  const month = state.months[idx];
-  const prevMonth = idx > 0 ? state.months[idx - 1] : null;
+  const month = computed[idx];
+  const prevMonth = idx > 0 ? computed[idx - 1] : null;
 
-  let chartMonths: MonthlyRecord[];
+  let chartMonths: typeof computed;
   if (period === "MTD") {
     chartMonths = prevMonth ? [prevMonth, month] : [month];
   } else if (period === "QTD") {
-    chartMonths = state.months.slice(Math.max(0, idx - 2), idx + 1);
+    chartMonths = computed.slice(Math.max(0, idx - 2), idx + 1);
   } else {
-    chartMonths = state.months.slice(0, idx + 1);
+    chartMonths = computed.slice(0, idx + 1);
   }
 
   return { month, prevMonth, chartMonths, period };

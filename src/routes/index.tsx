@@ -45,9 +45,28 @@ function Landing() {
             <a href="#how" className="hover:text-white">How it works</a>
             <a href="#agents" className="hover:text-white">Agents</a>
           </nav>
-          <Link to="/login" className="rounded-lg bg-white/10 px-4 py-2 text-[13px] font-bold backdrop-blur transition-colors hover:bg-white/20">
-            Sign in
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              to="/it-service/login"
+              className="hidden rounded-lg border border-white/15 px-3.5 py-2 text-[12px] font-bold text-white/80 backdrop-blur transition-colors hover:bg-white/10 sm:inline-flex"
+            >
+              IT Service
+            </Link>
+            <Link
+              to="/login"
+              search={{ mode: "signin" }}
+              className="rounded-lg border border-white/15 bg-white/5 px-3.5 py-2 text-[13px] font-bold backdrop-blur transition-colors hover:bg-white/15"
+            >
+              Sign in
+            </Link>
+            <Link
+              to="/login"
+              search={{ mode: "signup" }}
+              className="rounded-lg bg-primary px-3.5 py-2 text-[13px] font-bold text-primary-foreground shadow-lg shadow-primary/25 transition-colors hover:bg-primary/90"
+            >
+              Get started
+            </Link>
+          </div>
         </header>
 
         <div className="relative z-10 mx-auto max-w-7xl px-6 pb-24 pt-12 md:pt-20">

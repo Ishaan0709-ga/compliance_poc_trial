@@ -1,8 +1,9 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { Search, Bell, LogOut, PanelLeftClose, PanelLeftOpen, Menu, X } from "lucide-react";
 import graeLogo from "@/assets/grae-logo.png";
-import { useState, type ReactNode } from "react";
+import { useState, useEffect, type ReactNode } from "react";
 import { PORTALS, type PortalId } from "@/lib/portals";
+import { getActiveOrderCount } from "@/lib/marketplace/storage";
 import { supabase } from "@/integrations/supabase/client";
 
 export function PortalShell({
@@ -17,6 +18,18 @@ export function PortalShell({
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [orderBadge, setOrderBadge] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (portalId !== "founder") return;
+    const sync = () => {
+      const n = getActiveOrderCount();
+      setOrderBadge(n > 0 ? n : null);
+    };
+    sync();
+    window.addEventListener("founder-orders-update", sync);
+    return () => window.removeEventListener("founder-orders-update", sync);
+  }, [portalId]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -54,7 +67,12 @@ export function PortalShell({
                 )}
                 <Icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
                 {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
-                {!collapsed && item.badge && (
+                {!collapsed && item.label === "My Orders" && orderBadge != null && (
+                  <span className="ml-auto rounded bg-destructive-muted px-1.5 py-0.5 font-mono text-[10px] font-medium text-destructive">
+                    {orderBadge}
+                  </span>
+                )}
+                {!collapsed && item.badge && item.label !== "My Orders" && (
                   <span className="ml-auto rounded bg-destructive-muted px-1.5 py-0.5 font-mono text-[10px] font-medium text-destructive">
                     {item.badge}
                   </span>

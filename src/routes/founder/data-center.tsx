@@ -1,44 +1,68 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Download, Save, Upload } from "lucide-react";
 import { PortalShell } from "@/components/PortalShell";
-import { Btn, Pill } from "@/components/ui-kit";
+import { FounderSpreadsheetGrid } from "@/components/founder/FounderSpreadsheetGrid";
 import { EditableDataTable } from "@/components/founder/EditableDataTable";
+import { Btn, Pill } from "@/components/ui-kit";
+import { computeAllMonths } from "@/lib/founder-analytics/formulas";
 import { exportFounderExcel, importFounderExcel } from "@/lib/founder-analytics/excel-import";
 import { loadFounderAnalytics, saveFounderAnalytics } from "@/lib/founder-analytics/storage";
-import type { ComplianceFiling, FounderAnalyticsState, MonthlyRecord } from "@/lib/founder-analytics/types";
+import {
+  BURN_RUNWAY_SHEET_ROWS,
+  CUSTOMER_METRICS_SHEET_ROWS,
+  MRR_ARR_SHEET_ROWS,
+  RAW_DATA_SHEET_ROWS,
+  TEAM_OPS_SHEET_ROWS,
+} from "@/lib/founder-analytics/sheet-definitions";
+import type {
+  ComplianceFiling,
+  FounderAnalyticsState,
+  MonthHeader,
+  RawMonthlyInput,
+} from "@/lib/founder-analytics/types";
+import { MONTH_HEADERS } from "@/lib/founder-analytics/types";
 
 export const Route = createFileRoute("/founder/data-center")({
   head: () => ({ meta: [{ title: "Data Center — ComplyOS" }] }),
   component: DataCenterPage,
 });
 
-type TabId = "revenue" | "customers" | "expenses" | "cashflow" | "compliance" | "team";
+type TabId =
+  | "raw"
+  | "mrr-arr"
+  | "customer-metrics"
+  | "burn-runway"
+  | "team-ops"
+  | "compliance";
 
-const TABS: { id: TabId; label: string }[] = [
-  { id: "revenue", label: "Revenue" },
-  { id: "customers", label: "Customers" },
-  { id: "expenses", label: "Expenses" },
-  { id: "cashflow", label: "Cashflow" },
-  { id: "compliance", label: "Compliance" },
-  { id: "team", label: "Team" },
+const TABS: { id: TabId; label: string; excelSheet: string }[] = [
+  { id: "raw", label: "Raw Data Input", excelSheet: "Raw Data Input" },
+  { id: "mrr-arr", label: "MRR-ARR", excelSheet: "MRR-ARR" },
+  { id: "customer-metrics", label: "Customer Metrics", excelSheet: "Customer Metrics" },
+  { id: "burn-runway", label: "Burn-Runway", excelSheet: "Burn-Runway" },
+  { id: "team-ops", label: "Team-Ops", excelSheet: "Team-Ops" },
+  { id: "compliance", label: "Compliance", excelSheet: "—" },
 ];
 
 function DataCenterPage() {
   const [state, setState] = useState<FounderAnalyticsState>(loadFounderAnalytics);
-  const [tab, setTab] = useState<TabId>("revenue");
+  const [tab, setTab] = useState<TabId>("raw");
   const [saved, setSaved] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const updateMonths = useCallback((months: MonthlyRecord[]) => {
-    setState((s) => ({ ...s, months }));
-    setSaved(false);
-  }, []);
+  const computed = useMemo(() => computeAllMonths(state.months), [state.months]);
 
-  const updateCompliance = useCallback((compliance: ComplianceFiling[]) => {
-    setState((s) => ({ ...s, compliance }));
-    setSaved(false);
-  }, []);
+  const handleInputChange = useCallback(
+    (monthIndex: number, key: keyof RawMonthlyInput, value: number) => {
+      setState((s) => {
+        const months = s.months.map((m, i) => (i === monthIndex ? { ...m, [key]: value } : m));
+        return { ...s, months };
+      });
+      setSaved(false);
+    },
+    []
+  );
 
   const handleSave = () => {
     saveFounderAnalytics(state);
@@ -53,59 +77,12 @@ function DataCenterPage() {
     setSaved(true);
   };
 
-  const revenueRows = state.months.map((m) => ({
-    month: m.month,
-    mrr: m.mrr,
-    arr: m.arr,
-    netNewMrr: m.netNewMrr,
-    mrrGrowthMom: m.mrrGrowthMom != null ? (m.mrrGrowthMom * 100).toFixed(2) : "",
-    activeCustomers: m.activeCustomers,
-  }));
+  const updateCompliance = useCallback((compliance: ComplianceFiling[]) => {
+    setState((s) => ({ ...s, compliance }));
+    setSaved(false);
+  }, []);
 
-  const customerRows = state.months.map((m) => ({
-    month: m.month,
-    activeCustomers: m.activeCustomers,
-    newCustomers: m.newCustomers,
-    churned: m.churnedCustomers,
-    cac: m.cac,
-    ltv: m.ltv ?? "",
-    churnPct: m.logoChurnRate != null ? (m.logoChurnRate * 100).toFixed(2) : "",
-    nps: m.nps,
-  }));
-
-  const expenseRows = state.months.map((m) => ({
-    month: m.month,
-    revenue: m.revenue,
-    opex: m.opex,
-    netBurn: m.netBurn,
-  }));
-
-  const cashflowRows = state.months.map((m) => ({
-    month: m.month,
-    cashBalance: m.cashBalance,
-    runwayMonths: m.runwayMonths,
-    burnMultiple: m.burnMultiple ?? "",
-  }));
-
-  const teamRows = state.months.map((m) => ({
-    month: m.month,
-    headcount: m.headcount,
-    openRoles: m.openRoles,
-    attritionPct: m.attritionRate != null ? (m.attritionRate * 100).toFixed(2) : "",
-    revPerEmployee: m.revenuePerEmployee,
-    leads: m.leads,
-    qualified: m.qualified,
-    demos: m.demos,
-    closedWon: m.closedWon,
-  }));
-
-  const syncFromTable = <K extends keyof MonthlyRecord>(
-    rows: Record<string, unknown>[],
-    mapper: (row: Record<string, unknown>, prev: MonthlyRecord) => MonthlyRecord
-  ) => {
-    const next = state.months.map((prev, i) => mapper(rows[i] ?? {}, prev));
-    updateMonths(next);
-  };
+  const activeTab = TABS.find((t) => t.id === tab)!;
 
   return (
     <PortalShell portalId="founder">
@@ -119,7 +96,8 @@ function DataCenterPage() {
           </Link>
           <h1 className="text-[26px] font-extrabold tracking-[-0.03em] text-ink">Data Center</h1>
           <p className="mt-1 text-[13px] text-ink-3">
-            Manage business metrics — spreadsheet-style editing. Source: ishaan_excel.xlsx structure.
+            Spreadsheet-aligned with <strong>ishaan_excel.xlsx</strong> — white cells are inputs, grey cells
+            are formulas (same as Excel).
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -153,7 +131,7 @@ function DataCenterPage() {
             key={t.id}
             type="button"
             onClick={() => setTab(t.id)}
-            className={`rounded-lg px-4 py-2 text-[12px] font-bold transition-colors ${
+            className={`rounded-lg px-3 py-2 text-[12px] font-bold transition-colors ${
               tab === t.id
                 ? "bg-background text-primary shadow-sm"
                 : "text-ink-4 hover:text-ink-2"
@@ -164,126 +142,79 @@ function DataCenterPage() {
         ))}
       </div>
 
-      <div className="mb-3 flex items-center gap-2">
-        <span className="text-[12px] text-ink-4">Reporting month</span>
-        <select
-          className="rounded-lg border border-border bg-background px-3 py-1.5 text-[13px] font-medium"
-          value={state.reportingMonth}
-          onChange={(e) => {
-            setState((s) => ({ ...s, reportingMonth: e.target.value }));
-            setSaved(false);
-          }}
-        >
-          {state.months.map((m) => (
-            <option key={m.month} value={m.month}>
-              {m.month}
-            </option>
-          ))}
-        </select>
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2">
+          <span className="text-[12px] text-ink-4">Reporting month</span>
+          <select
+            className="rounded-lg border border-border bg-background px-3 py-1.5 text-[13px] font-medium"
+            value={state.reportingMonth}
+            onChange={(e) => {
+              setState((s) => ({
+                ...s,
+                reportingMonth: e.target.value as MonthHeader,
+              }));
+              setSaved(false);
+            }}
+          >
+            {MONTH_HEADERS.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        </div>
+        <Pill tone="infra">Sheet: {activeTab.excelSheet}</Pill>
       </div>
 
-      {tab === "revenue" && (
-        <EditableDataTable
-          columns={[
-            { key: "month", label: "Month", readOnly: true },
-            { key: "mrr", label: "MRR", type: "number" },
-            { key: "arr", label: "ARR", type: "number" },
-            { key: "netNewMrr", label: "Net New MRR", type: "number" },
-            { key: "mrrGrowthMom", label: "MRR Growth %", type: "number" },
-            { key: "activeCustomers", label: "Customers", type: "number" },
-          ]}
-          rows={revenueRows}
-          rowKey={(r) => String(r.month)}
-          onChange={(rows) =>
-            syncFromTable(rows, (row, prev) => ({
-              ...prev,
-              mrr: Number(row.mrr) || 0,
-              arr: Number(row.arr) || prev.mrr * 12,
-              netNewMrr: Number(row.netNewMrr) || prev.netNewMrr,
-              mrrGrowthMom:
-                row.mrrGrowthMom === "" || row.mrrGrowthMom == null
-                  ? prev.mrrGrowthMom
-                  : Number(row.mrrGrowthMom) / 100,
-              activeCustomers: Number(row.activeCustomers) || prev.activeCustomers,
-            }))
-          }
+      {tab === "raw" && (
+        <FounderSpreadsheetGrid
+          title="Raw Data Input"
+          subtitle="Enter monthly figures here. Source noted per section. All values in INR unless noted."
+          rows={RAW_DATA_SHEET_ROWS}
+          months={state.months}
+          computed={computed}
+          onInputChange={handleInputChange}
         />
       )}
 
-      {tab === "customers" && (
-        <EditableDataTable
-          columns={[
-            { key: "month", label: "Month", readOnly: true },
-            { key: "activeCustomers", label: "Customers", type: "number" },
-            { key: "newCustomers", label: "New", type: "number" },
-            { key: "churned", label: "Churned", type: "number" },
-            { key: "cac", label: "CAC", type: "number" },
-            { key: "ltv", label: "LTV", type: "number" },
-            { key: "churnPct", label: "Churn %", type: "number" },
-            { key: "nps", label: "NPS", type: "number" },
-          ]}
-          rows={customerRows}
-          rowKey={(r) => String(r.month)}
-          onChange={(rows) =>
-            syncFromTable(rows, (row, prev) => ({
-              ...prev,
-              activeCustomers: Number(row.activeCustomers) || prev.activeCustomers,
-              newCustomers: Number(row.newCustomers) || 0,
-              churnedCustomers: Number(row.churned) || 0,
-              cac: Number(row.cac) || prev.cac,
-              ltv: row.ltv === "" ? null : Number(row.ltv) || prev.ltv,
-              logoChurnRate:
-                row.churnPct === "" ? prev.logoChurnRate : Number(row.churnPct) / 100,
-              nps: Number(row.nps) || prev.nps,
-            }))
-          }
+      {tab === "mrr-arr" && (
+        <FounderSpreadsheetGrid
+          title="MRR-ARR"
+          subtitle="Linked from Raw Data Input. Do not overwrite — updates automatically when inputs change."
+          rows={MRR_ARR_SHEET_ROWS.map((r) => ({ ...r, kind: r.kind === "input" ? "computed" : r.kind }))}
+          months={state.months}
+          computed={computed}
         />
       )}
 
-      {tab === "expenses" && (
-        <EditableDataTable
-          columns={[
-            { key: "month", label: "Month", readOnly: true },
-            { key: "revenue", label: "Revenue", type: "number" },
-            { key: "opex", label: "OpEx", type: "number" },
-            { key: "netBurn", label: "Net Burn", type: "number" },
-          ]}
-          rows={expenseRows}
-          rowKey={(r) => String(r.month)}
-          onChange={(rows) =>
-            syncFromTable(rows, (row, prev) => {
-              const revenue = Number(row.revenue) || 0;
-              const opex = Number(row.opex) || 0;
-              return {
-                ...prev,
-                revenue,
-                opex,
-                netBurn: Number(row.netBurn) || opex - revenue,
-              };
-            })
-          }
+      {tab === "customer-metrics" && (
+        <FounderSpreadsheetGrid
+          title="Customer Metrics"
+          subtitle="Gross margin is editable (yellow assumption in Excel). All other rows are calculated."
+          rows={CUSTOMER_METRICS_SHEET_ROWS}
+          months={state.months}
+          computed={computed}
+          onInputChange={handleInputChange}
         />
       )}
 
-      {tab === "cashflow" && (
-        <EditableDataTable
-          columns={[
-            { key: "month", label: "Month", readOnly: true },
-            { key: "cashBalance", label: "Cash Balance", type: "number" },
-            { key: "runwayMonths", label: "Runway (mo)", type: "number" },
-            { key: "burnMultiple", label: "Burn Multiple", type: "number" },
-          ]}
-          rows={cashflowRows}
-          rowKey={(r) => String(r.month)}
-          onChange={(rows) =>
-            syncFromTable(rows, (row, prev) => ({
-              ...prev,
-              cashBalance: Number(row.cashBalance) || prev.cashBalance,
-              runwayMonths: Number(row.runwayMonths) || prev.runwayMonths,
-              burnMultiple:
-                row.burnMultiple === "" ? prev.burnMultiple : Number(row.burnMultiple),
-            }))
-          }
+      {tab === "burn-runway" && (
+        <FounderSpreadsheetGrid
+          title="Burn & Runway"
+          subtitle="Linked from Raw Data Input (Zoho Books P&L / Balance Sheet) and MRR-ARR."
+          rows={BURN_RUNWAY_SHEET_ROWS}
+          months={state.months}
+          computed={computed}
+        />
+      )}
+
+      {tab === "team-ops" && (
+        <FounderSpreadsheetGrid
+          title="Team & Ops"
+          subtitle="Linked from Raw Data Input (Zoho People / Payroll) and MRR-ARR sheet."
+          rows={TEAM_OPS_SHEET_ROWS}
+          months={state.months}
+          computed={computed}
         />
       )}
 
@@ -324,41 +255,10 @@ function DataCenterPage() {
         />
       )}
 
-      {tab === "team" && (
-        <EditableDataTable
-          columns={[
-            { key: "month", label: "Month", readOnly: true },
-            { key: "headcount", label: "Headcount", type: "number" },
-            { key: "openRoles", label: "Open Roles", type: "number" },
-            { key: "attritionPct", label: "Attrition %", type: "number" },
-            { key: "revPerEmployee", label: "Rev / Employee", type: "number" },
-            { key: "leads", label: "Leads", type: "number" },
-            { key: "qualified", label: "Qualified", type: "number" },
-            { key: "demos", label: "Demos", type: "number" },
-            { key: "closedWon", label: "Closed Won", type: "number" },
-          ]}
-          rows={teamRows}
-          rowKey={(r) => String(r.month)}
-          onChange={(rows) =>
-            syncFromTable(rows, (row, prev) => ({
-              ...prev,
-              headcount: Number(row.headcount) || prev.headcount,
-              openRoles: Number(row.openRoles) || 0,
-              attritionRate:
-                row.attritionPct === "" ? prev.attritionRate : Number(row.attritionPct) / 100,
-              revenuePerEmployee: Number(row.revPerEmployee) || prev.revenuePerEmployee,
-              leads: Number(row.leads) || 0,
-              qualified: Number(row.qualified) || 0,
-              demos: Number(row.demos) || 0,
-              closedWon: Number(row.closedWon) || 0,
-            }))
-          }
-        />
-      )}
-
       <p className="mt-4 text-[11px] text-ink-4">
-        Click any cell to edit. Save Changes updates the dashboard instantly. Import reads{" "}
-        <code className="rounded bg-surface-2 px-1">ishaan_excel.xlsx</code> Raw Data Input sheet.
+        Matches <code className="rounded bg-surface-2 px-1">ishaan_excel.xlsx</code> structure. Import reads
+        blue input cells from Raw Data Input + gross margin from Customer Metrics. Dashboard pulls the
+        reporting month column — same as Excel Dashboard sheet cell D5.
       </p>
     </PortalShell>
   );

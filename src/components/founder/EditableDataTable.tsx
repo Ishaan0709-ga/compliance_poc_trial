@@ -86,10 +86,10 @@ export function EditableDataTable<T extends Record<string, unknown>>({
                         <div className="px-2 py-1.5 font-medium text-ink-3">{displayValue(val)}</div>
                       ) : (
                         <input
-                          className={`w-full min-w-[88px] rounded-md border px-2 py-1.5 text-[12px] font-semibold tabular-nums tracking-[-0.01em] text-slate-900 outline-none transition-colors ${
+                          className={`w-full min-w-[88px] rounded-md border px-2 py-1.5 text-[12px] font-semibold tabular-nums tracking-[-0.01em] outline-none transition-colors ${
                             isEditing
-                              ? "border-primary bg-primary-muted/30 text-ink"
-                              : "border-transparent bg-transparent text-ink hover:border-border hover:bg-background"
+                              ? "border-primary bg-white text-ink ring-1 ring-primary/30"
+                              : "border-slate-200 bg-white text-slate-900 hover:border-slate-300"
                           }`}
                           value={displayValue(val)}
                           onFocus={() => setEditing({ row: rowIdx, col: col.key })}
